@@ -1,0 +1,34 @@
+{
+  "name": "@david.uhlir/mesh",
+  "version": "0.0.1",
+  "description": "Mesh bus for node.js server applications",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "rimraf ./dist && tsc",
+    "prettier-format": "prettier --config .prettierrc.json 'lib/**/*.ts' --write"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/daviduhlir/mesh.git"
+  },
+  "keywords": [
+    "promise",
+    "async",
+    "cluster",
+    "workers",
+    "node",
+    "mutex",
+    "lock",
+    "ipc",
+    "util"
+  ],
+  "author": "David Uhlíř",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^13.11.1",
+    "prettier": "^2.6.2",
+    "rimraf": "^2.6.2",
+    "typescript": "^3.8.3"
+  }
+}
