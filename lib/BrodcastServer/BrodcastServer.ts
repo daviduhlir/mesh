@@ -44,7 +44,7 @@ export class BrodcastServer extends EventEmitter {
    */
   public send(data: any) {
     for(const connection of this.connections) {
-      connection.send(JSON.stringify(data), 'utf8')
+      connection.send(data)
     }
   }
 
@@ -95,23 +95,16 @@ export class BrodcastServer extends EventEmitter {
     handler.on(SERVER_CONNECTION_EVENTS.MESSAGE, this.handleIncommingMessage)
     handler.on(SERVER_CONNECTION_EVENTS.CLOSE, this.handleConnectionClose)
 
+    this.emit(SERVER_CONNECTION_EVENTS.NEW_CONNECTION, handler)
+
     this.connections.push(handler)
   }
 
   /**
    * Message received
    */
-  protected handleIncommingMessage = (connection: Connection, message: any) => {
-    if (message.type === 'utf8') {
-      try {
-        this.emit(SERVER_CONNECTION_EVENTS.MESSAGE, JSON.parse(message.utf8Data))
-      } catch(e) {
-        // TODO what to do if message is not parsable?
-      }
-    }
-    else if (message.type === 'binary') {
-      // TODO can't handle this type of data for this moment
-    }
+  protected handleIncommingMessage = (connection: Connection, data: any) => {
+    this.emit(SERVER_CONNECTION_EVENTS.MESSAGE, data)
   }
 
   /**

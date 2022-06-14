@@ -11,13 +11,8 @@ export class Connection extends EventEmitter {
     connection.on('close', this.onClose);
   }
 
-  public send(data: any, type: 'utf8' | 'binary' = 'utf8') {
-    if (type === 'utf8') {
-      this.connection.sendUTF(data);
-    }
-    else if (type === 'binary') {
-      this.connection.sendBytes(data);
-    }
+  public send(data: any) {
+    this.connection.sendUTF(JSON.stringify(data))
   }
 
   public destroy() {
@@ -25,7 +20,13 @@ export class Connection extends EventEmitter {
   }
 
   protected onMessage = (message) => {
-    this.emit(SERVER_CONNECTION_EVENTS.MESSAGE, this, message)
+    if (message.type === 'utf8') {
+      try {
+        this.emit(SERVER_CONNECTION_EVENTS.MESSAGE, this, JSON.parse(message.utf8Data))
+      } catch(e) {
+        // TODO what to do if message is not parsable?
+      }
+    }
   }
 
   protected onClose = () => {
