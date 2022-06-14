@@ -1,6 +1,7 @@
 import { client as WebSocketClient, connection as WebSocketConnection } from 'websocket'
 import { EventEmitter } from 'events'
-import { CLIENT_CONNECTION_EVENTS } from './constants'
+import { CONNECTION_EVENTS } from './utils/constants'
+import { randomHash } from './utils'
 
 export interface ClientConfiguration {
   urls: string[]
@@ -21,6 +22,8 @@ export class BroadcastClient extends EventEmitter {
     urlIndex: 0,
   }
 
+  public readonly id = randomHash()
+
   constructor(configuration: Partial<ClientConfiguration>) {
     super()
     this.configuration = {
@@ -28,7 +31,13 @@ export class BroadcastClient extends EventEmitter {
       ...configuration,
     }
     this.wsClient = new WebSocketClient()
-    this.resetConnection()
+  }
+
+  /**
+   * get connection
+   */
+   public getConnection(): WebSocketConnection {
+    return this.currentConnection
   }
 
   /**
@@ -62,7 +71,9 @@ export class BroadcastClient extends EventEmitter {
    * Send data
    */
   public send(data: any) {
-    this.currentConnection.sendUTF(JSON.stringify(data))
+    if (this.isConnected) {
+      this.currentConnection.sendUTF(JSON.stringify(data))
+    }
   }
 
   /**
@@ -76,19 +87,27 @@ export class BroadcastClient extends EventEmitter {
       return
     }
 
-    const tryConnection = async () => {
-      try {
-        await this.connect(this.configuration.urls[this.connectionAttemp.urlIndex])
-      } catch(e) {
-        this.connectionAttemp.attempNumber++
-        if (this.connectionAttemp.attempNumber > this.configuration.maxAttemps) {
-          this.connectionAttemp.urlIndex = this.connectionAttemp.attempNumber + 1 % this.configuration.urls.length
+    await (new Promise((resolve: (value) => void, reject: (error) => void) => {
+      const tryConnection = async () => {
+        try {
+          const connection = await this.connect(this.configuration.urls[this.connectionAttemp.urlIndex])
+          resolve(connection)
+        } catch(e) {
+          this.connectionAttemp.attempNumber++
+          if (this.connectionAttemp.attempNumber > this.configuration.maxAttemps) {
+            this.connectionAttemp.urlIndex = this.connectionAttemp.urlIndex + 1 % this.configuration.urls.length
+          }
+          setTimeout(() => tryConnection(), 1000)
         }
-        await tryConnection()
       }
-    }
 
-    await tryConnection()
+      tryConnection()
+    }))
+
+    console.log('SENDING_HANDSHAKE', this.id)
+    this.send({
+      MESH_HANDSHAKE: this.id,
+    })
   }
 
   /**
@@ -122,6 +141,7 @@ export class BroadcastClient extends EventEmitter {
     this.currentConnection.on('close', this.handleOnConnectionClose)
     this.currentConnection.on('message', this.handleOnMessage)
 
+    this.emit(CONNECTION_EVENTS.OPEN, this.currentConnection)
     return this.currentConnection
   }
 
@@ -146,7 +166,7 @@ export class BroadcastClient extends EventEmitter {
   protected handleOnMessage = (message) => {
     if (message.type === 'utf8') {
       try {
-        this.emit(CLIENT_CONNECTION_EVENTS.MESSAGE, JSON.parse(message.utf8Data))
+        this.emit(CONNECTION_EVENTS.MESSAGE, JSON.parse(message.utf8Data), this.currentConnection)
       } catch(e) {
         // TODO what to do if message is not parsable?
       }

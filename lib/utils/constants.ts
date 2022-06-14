@@ -1,0 +1,5 @@
+export const CONNECTION_EVENTS = {
+  MESSAGE: 'MESSAGE',
+  CLOSE: 'CLOSE',
+  OPEN: 'OPEN',
+}
