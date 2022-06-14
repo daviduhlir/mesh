@@ -13,22 +13,20 @@
     "url": "git+https://github.com/daviduhlir/mesh.git"
   },
   "keywords": [
-    "promise",
-    "async",
-    "cluster",
-    "workers",
-    "node",
-    "mutex",
-    "lock",
-    "ipc",
-    "util"
+    "websocket",
+    "server",
+    "node"
   ],
   "author": "David Uhlíř",
   "license": "ISC",
   "devDependencies": {
     "@types/node": "^13.11.1",
+    "@types/websocket": "^1.0.5",
     "prettier": "^2.6.2",
     "rimraf": "^2.6.2",
     "typescript": "^3.8.3"
+  },
+  "dependencies": {
+    "websocket": "^1.0.34"
   }
 }
