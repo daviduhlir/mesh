@@ -142,11 +142,11 @@ export class BroadcastService extends EventEmitter {
    */
   protected handleIncommingMessage = async (connection: Connection, message: any) => {
     // just for sure, if message is back in same service
-    if (message.MESSAGE_LIST_NODES) {
-      if (message.ORIGINAL_SENDER === this.id) {
-        return
-      }
+    if (message.ORIGINAL_SENDER === this.id) {
+      return
+    }
 
+    if (message.MESSAGE_LIST_NODES) {
       connection.send({
         ORIGINAL_SENDER: message.ORIGINAL_SENDER,
         MESSAGE_ID_RESULT: message.MESSAGE_ID,

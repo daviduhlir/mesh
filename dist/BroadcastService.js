@@ -27,11 +27,10 @@ class BroadcastService extends events_1.EventEmitter {
             });
         };
         this.handleIncommingMessage = async (connection, message) => {
+            if (message.ORIGINAL_SENDER === this.id) {
+                return;
+            }
             if (message.MESSAGE_LIST_NODES) {
-                if (message.ORIGINAL_SENDER === this.id) {
-                    return;
-                }
-                console.log(`ORIGINAL: ${message.ORIGINAL_SENDER}`, connection.id, ' -> ', this.id);
                 connection.send({
                     ORIGINAL_SENDER: message.ORIGINAL_SENDER,
                     MESSAGE_ID_RESULT: message.MESSAGE_ID,
