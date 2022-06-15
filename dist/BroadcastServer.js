@@ -4,7 +4,7 @@ exports.BroadcastServer = exports.defaultConfiguration = void 0;
 const websocket_1 = require("websocket");
 const http = require("http");
 const events_1 = require("events");
-const constants_1 = require("./utils/constants");
+const constants_1 = require("./constants");
 const Connection_1 = require("./Connection");
 exports.defaultConfiguration = {
     port: 8080,

@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.BroadcastService = exports.defaultConfiguration = exports.BROADCAST_EVENTS = void 0;
 const BroadcastServer_1 = require("./BroadcastServer");
 const BroadcastClient_1 = require("./BroadcastClient");
-const constants_1 = require("./utils/constants");
+const constants_1 = require("./constants");
 const utils_1 = require("./utils");
 const events_1 = require("events");
 exports.BROADCAST_EVENTS = {
@@ -108,13 +108,13 @@ class BroadcastService extends events_1.EventEmitter {
         }
     }
     async sendWithResult(targetRoute, type, data) {
-        const messageId = utils_1.randomHash();
         const route = [...targetRoute];
         const firstRoute = route.shift();
         const connection = this.getConnections().find(c => c.id === firstRoute);
         if (!connection) {
             throw new Error(`Route to ${firstRoute} not found on node ${this.id}`);
         }
+        const messageId = utils_1.randomHash();
         return new Promise((resolve, reject) => {
             const handleMessage = (_, message) => {
                 if (message.MESSAGE_ID === messageId && message.MESSAGE_RETURN) {

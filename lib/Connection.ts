@@ -1,6 +1,6 @@
 import { connection as WebSocketConnection } from 'websocket'
 import { EventEmitter } from 'events'
-import { CONNECTION_EVENTS } from './utils/constants'
+import { CONNECTION_EVENTS } from './constants'
 
 export class Connection extends EventEmitter {
   protected internalId: string

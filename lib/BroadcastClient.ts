@@ -1,6 +1,6 @@
 import { client as WebSocketClient, connection as WebSocketConnection } from 'websocket'
 import { EventEmitter } from 'events'
-import { CONNECTION_EVENTS } from './utils/constants'
+import { CONNECTION_EVENTS } from './constants'
 import { Connection } from './Connection'
 
 export interface ClientConfiguration {

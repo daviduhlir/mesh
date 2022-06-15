@@ -1,6 +1,6 @@
 import { BroadcastServer } from './BroadcastServer'
 import { BroadcastClient } from './BroadcastClient'
-import { CONNECTION_EVENTS } from './utils/constants'
+import { CONNECTION_EVENTS } from './constants'
 import { randomHash } from './utils'
 import { Connection } from './Connection'
 import { EventEmitter } from 'events'
