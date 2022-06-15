@@ -9,7 +9,7 @@ export const BROADCAST_EVENTS = {
   MESSAGE: 'MESSAGE'
 }
 
-export interface BrodcastServiceConfiguration {
+export interface BroadcastServiceConfiguration {
   nodesUrls: string[]
   maxConnectionAttemps: number
   serverPort: number
@@ -17,7 +17,7 @@ export interface BrodcastServiceConfiguration {
   serverAllowOrigin: (origin: string) => boolean
 }
 
-export const defaultConfiguration: BrodcastServiceConfiguration = {
+export const defaultConfiguration: BroadcastServiceConfiguration = {
   nodesUrls: ['ws://127.0.0.1:8080'],
   maxConnectionAttemps: 3,
   serverPort: 8080,
@@ -26,21 +26,20 @@ export const defaultConfiguration: BrodcastServiceConfiguration = {
 }
 
 export class BroadcastService extends EventEmitter {
-  protected configuration: BrodcastServiceConfiguration
+  protected configuration: BroadcastServiceConfiguration
   protected server: BroadcastServer
   protected client: BroadcastClient
   protected nodesList: string[] = []
 
-  protected id// readonly id: string = randomHash()
+  protected readonly id: string = randomHash()
 
-  constructor(configuration: Partial<BrodcastServiceConfiguration>) {
+  constructor(configuration: Partial<BroadcastServiceConfiguration>) {
     super()
 
     this.configuration = {
       ...defaultConfiguration,
       ...configuration,
     }
-    this.id = configuration.serverPort // TODO remove it after debug
 
     this.server = new BroadcastServer(this.id, {
       port: this.configuration.serverPort,
@@ -52,6 +51,13 @@ export class BroadcastService extends EventEmitter {
       urls: this.configuration.nodesUrls,
       maxAttemps: this.configuration.maxConnectionAttemps,
     })
+  }
+
+  /**
+   * Get current configuration
+   */
+  public getConfiguration(): BroadcastServiceConfiguration {
+    return this.configuration
   }
 
   /**
@@ -120,7 +126,6 @@ export class BroadcastService extends EventEmitter {
       if ((message.TARGET_NODES_LIST as string[]).includes(this.id)) {
 
         if (message.DATA_MESSAGE) {
-          console.log(this.id, 'Received', message)
           this.emit(BROADCAST_EVENTS.MESSAGE, message.DATA_MESSAGE)
         } else {
           this.handleInternalMessage(message)

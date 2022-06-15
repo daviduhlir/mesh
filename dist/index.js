@@ -18,27 +18,30 @@ const s = [
         nodesUrls: ['ws://127.0.0.1:5000/', 'ws://127.0.0.1:5001/', 'ws://127.0.0.1:5002/'],
         serverPort: 5003,
     }),
-];
-s.forEach(c => c.initialize());
-setTimeout(async () => {
-    console.log('new one');
-    s.push(new BroadcastService_1.BroadcastService({
+    new BroadcastService_1.BroadcastService({
         nodesUrls: ['ws://127.0.0.1:5000/', 'ws://127.0.0.1:5001/', 'ws://127.0.0.1:5002/'],
         serverPort: 5004,
-    }));
-    s[4].initialize();
-}, 1000);
+    }),
+];
+s.forEach(c => {
+    c.on(BroadcastService_1.BROADCAST_EVENTS.MESSAGE, (message) => console.log(c.getConfiguration().serverPort, message));
+    c.initialize();
+});
 setTimeout(async () => {
-    console.log('Strated listing');
-    console.log('5000', await s[0].getNodesList());
-    console.log('5001', await s[1].getNodesList());
-    console.log('5002', await s[2].getNodesList());
-    console.log('5003', await s[3].getNodesList());
-    console.log('5004', await s[4].getNodesList());
-}, 2000);
-setTimeout(async () => {
-    s[4].broadcast({
-        message: 'Hello world'
+    s[0].broadcast({
+        message: '0 - Hello world'
     });
-}, 3000);
+    s[1].broadcast({
+        message: '1 - Hello world'
+    });
+    s[2].broadcast({
+        message: '2 - Hello world'
+    });
+    s[3].broadcast({
+        message: '3 - Hello world'
+    });
+    s[4].broadcast({
+        message: '4 - Hello world'
+    });
+}, 1000);
 //# sourceMappingURL=index.js.map

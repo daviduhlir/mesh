@@ -20,9 +20,9 @@ class BroadcastService extends events_1.EventEmitter {
     constructor(configuration) {
         super();
         this.nodesList = [];
+        this.id = utils_1.randomHash();
         this.handleNodesConnectionsChange = async (connection) => {
             this.updateNodesList();
-            console.log(this.id, 'Change of mesh state');
             this.broadcastInternalMessage({
                 UPDATE_NODE_LIST: true
             });
@@ -37,7 +37,6 @@ class BroadcastService extends events_1.EventEmitter {
             if (message.BROADCAST_MESSAGE) {
                 if (message.TARGET_NODES_LIST.includes(this.id)) {
                     if (message.DATA_MESSAGE) {
-                        console.log(this.id, 'Received', message);
                         this.emit(exports.BROADCAST_EVENTS.MESSAGE, message.DATA_MESSAGE);
                     }
                     else {
@@ -56,7 +55,6 @@ class BroadcastService extends events_1.EventEmitter {
             ...exports.defaultConfiguration,
             ...configuration,
         };
-        this.id = configuration.serverPort;
         this.server = new BroadcastServer_1.BroadcastServer(this.id, {
             port: this.configuration.serverPort,
             host: this.configuration.serverHost,
@@ -66,6 +64,9 @@ class BroadcastService extends events_1.EventEmitter {
             urls: this.configuration.nodesUrls,
             maxAttemps: this.configuration.maxConnectionAttemps,
         });
+    }
+    getConfiguration() {
+        return this.configuration;
     }
     async initialize() {
         this.server.on(constants_1.CONNECTION_EVENTS.MESSAGE, this.handleIncommingMessage);

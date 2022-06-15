@@ -6,21 +6,22 @@ import { EventEmitter } from 'events';
 export declare const BROADCAST_EVENTS: {
     MESSAGE: string;
 };
-export interface BrodcastServiceConfiguration {
+export interface BroadcastServiceConfiguration {
     nodesUrls: string[];
     maxConnectionAttemps: number;
     serverPort: number;
     serverHost: string;
     serverAllowOrigin: (origin: string) => boolean;
 }
-export declare const defaultConfiguration: BrodcastServiceConfiguration;
+export declare const defaultConfiguration: BroadcastServiceConfiguration;
 export declare class BroadcastService extends EventEmitter {
-    protected configuration: BrodcastServiceConfiguration;
+    protected configuration: BroadcastServiceConfiguration;
     protected server: BroadcastServer;
     protected client: BroadcastClient;
     protected nodesList: string[];
-    protected id: any;
-    constructor(configuration: Partial<BrodcastServiceConfiguration>);
+    protected readonly id: string;
+    constructor(configuration: Partial<BroadcastServiceConfiguration>);
+    getConfiguration(): BroadcastServiceConfiguration;
     initialize(): Promise<void>;
     getConnections(): Connection[];
     getNodesList(): Promise<string[]>;
