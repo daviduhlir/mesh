@@ -31,7 +31,7 @@ export class BroadcastService extends EventEmitter {
   protected client: BroadcastClient
   protected routes: string[][] = []
 
-  protected readonly id: string = randomHash()
+  protected id//readonly id: string = randomHash()
 
   constructor(configuration: Partial<BroadcastServiceConfiguration>) {
     super()
@@ -40,6 +40,8 @@ export class BroadcastService extends EventEmitter {
       ...defaultConfiguration,
       ...configuration,
     }
+
+    this.id = this.configuration.serverPort
 
     this.server = new BroadcastServer(this.id, {
       port: this.configuration.serverPort,
@@ -64,8 +66,8 @@ export class BroadcastService extends EventEmitter {
    * Initialize connection
    */
   public async initialize() {
-    this.server.on(CONNECTION_EVENTS.MESSAGE, this.handleIncommingMessage)
-    this.client.on(CONNECTION_EVENTS.MESSAGE, this.handleIncommingMessage)
+    this.server.on(CONNECTION_EVENTS.MESSAGE, this.handleRoutingIncommingMessage)
+    this.client.on(CONNECTION_EVENTS.MESSAGE, this.handleRoutingIncommingMessage)
 
     this.server.on(CONNECTION_EVENTS.CLOSE, this.handleNodesConnectionsChange)
     this.server.on(CONNECTION_EVENTS.OPEN, this.handleNodesConnectionsChange)
@@ -126,26 +128,48 @@ export class BroadcastService extends EventEmitter {
   /**
    * Message received
    */
-  protected handleIncommingMessage = async (connection: Connection, message: any) => {
+  protected handleRoutingIncommingMessage = async (connection: Connection, message: any) => {
     if (message.ROUTE?.length) {
-
+      // PROXY message
       if (message.MESSAGE_ID) {
-        connection.send({
-          MESSAGE_RESULT_ID: message.MESSAGE_ID,
-          RESULT: await this.sendWithResult(message.ROUTE, message.TYPE, message.DATA),
-        })
+        // with result
+        try {
+          connection.send({
+            MESSAGE_ID: message.MESSAGE_ID,
+            MESSAGE_RETURN: true,
+            RESULT: await this.sendWithResult(message.ROUTE, message.TYPE, message.DATA),
+          })
+        } catch(e) {
+          connection.send({
+            MESSAGE_ID: message.MESSAGE_ID,
+            MESSAGE_RETURN: true,
+            ERROR: e.toString(),
+          })
+        }
       } else {
-        this.send(message.ROUTE, message.TYPE, message.DATA)
+        // without result
+        try {
+          this.send(message.ROUTE, message.TYPE, message.DATA)
+        } catch(e) {}
       }
     } else {
-      if (message.TYPE === 'TRACE_PROBE') {
-        connection.send({
-          MESSAGE_RESULT_ID: message.MESSAGE_ID,
-          RESULT: this.getConnections().filter(c => c.id !== connection.id).map(c => c.id),
-        })
-      } else if (message.TYPE === 'BROADCAST') {
-        this.emit(BROADCAST_EVENTS.MESSAGE, message.DATA)
-      }
+      this.handleIncommingMessage(connection, message)
+    }
+  }
+
+  /**
+   * Do some stuff with messages that have type
+   */
+  protected async handleIncommingMessage(connection: Connection, message: any) {
+    // final message habdling
+    if (message.TYPE === 'TRACE_PROBE') {
+      connection.send({
+        MESSAGE_ID: message.MESSAGE_ID,
+        MESSAGE_RETURN: true,
+        RESULT: this.getConnections().filter(c => c.id !== connection.id).map(c => c.id),
+      })
+    } else if (message.TYPE === 'BROADCAST') {
+      this.emit(BROADCAST_EVENTS.MESSAGE, message.DATA)
     }
   }
 
@@ -159,19 +183,24 @@ export class BroadcastService extends EventEmitter {
    * Send message and wait for result
    */
   protected async sendWithResult(targetRoute: string[], type: string, data: any) {
-    const messageId = randomHash()
     const route = [...targetRoute]
     const firstRoute = route.shift()
     const connection = this.getConnections().find(c => c.id === firstRoute)
     if (!connection) {
-      return
+      throw new Error(`Route to ${firstRoute} not found on node ${this.id}`)
     }
+
+    const messageId = randomHash()
 
     return new Promise((resolve: (response: any) => void, reject: (error) => void) => {
       const handleMessage = (_: Connection, message: any) => {
-        if (message.MESSAGE_RESULT_ID === messageId) {
+        if (message.MESSAGE_ID === messageId && message.MESSAGE_RETURN) {
           connection.removeListener(CONNECTION_EVENTS.MESSAGE, handleMessage)
-          resolve(message.RESULT)
+          if (message.ERROR) {
+            reject(message.ERROR)
+          } else {
+            resolve(message.RESULT)
+          }
         }
       }
 
@@ -180,12 +209,15 @@ export class BroadcastService extends EventEmitter {
     })
   }
 
+  /**
+   * Send data without any results
+   */
   protected async send(targetRoute: string[], type: string, data: any, messageId?: string) {
     const route = [...targetRoute]
     const firstRoute = route.shift()
     const connection = this.getConnections().find(c => c.id === firstRoute)
     if (!connection) {
-      return
+      throw new Error(`Route to ${firstRoute} not found on node ${this.id}`)
     }
 
     connection.send({
@@ -206,11 +238,14 @@ export class BroadcastService extends EventEmitter {
    * Update nodes list by listing in net
    */
   protected async updateNodesList() {
-    this.routes = this.getConnections().map(c => [c.id])
+    this.routes = this.getConnections().filter(c => !!c.id).map(c => [c.id])
 
     for(let i = 0; i < this.routes.length; i++) {
       const testingRoute = this.routes[i]
-      const result = await this.sendWithResult(testingRoute, 'TRACE_PROBE', {})
+      let result
+      try {
+        result = await this.sendWithResult(testingRoute, 'TRACE_PROBE', {})
+      } catch(e) {}
 
       if (!result) {
         continue

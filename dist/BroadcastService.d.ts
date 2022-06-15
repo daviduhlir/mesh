@@ -19,7 +19,7 @@ export declare class BroadcastService extends EventEmitter {
     protected server: BroadcastServer;
     protected client: BroadcastClient;
     protected routes: string[][];
-    protected readonly id: string;
+    protected id: any;
     constructor(configuration: Partial<BroadcastServiceConfiguration>);
     getConfiguration(): BroadcastServiceConfiguration;
     initialize(): Promise<void>;
@@ -27,7 +27,8 @@ export declare class BroadcastService extends EventEmitter {
     getNodesList(): Promise<string[]>;
     broadcast(data: any): void;
     protected handleNodesConnectionsChange: (connection: Connection) => Promise<void>;
-    protected handleIncommingMessage: (connection: Connection, message: any) => Promise<void>;
+    protected handleRoutingIncommingMessage: (connection: Connection, message: any) => Promise<void>;
+    protected handleIncommingMessage(connection: Connection, message: any): Promise<void>;
     protected sendWithResult(targetRoute: string[], type: string, data: any): Promise<any>;
     protected send(targetRoute: string[], type: string, data: any, messageId?: string): Promise<void>;
     protected updateNodesList(): Promise<void>;

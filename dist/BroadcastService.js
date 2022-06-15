@@ -20,38 +20,43 @@ class BroadcastService extends events_1.EventEmitter {
     constructor(configuration) {
         super();
         this.routes = [];
-        this.id = utils_1.randomHash();
         this.handleNodesConnectionsChange = async (connection) => {
             this.updateNodesList();
         };
-        this.handleIncommingMessage = async (connection, message) => {
+        this.handleRoutingIncommingMessage = async (connection, message) => {
             if (message.ROUTE?.length) {
                 if (message.MESSAGE_ID) {
-                    connection.send({
-                        MESSAGE_RESULT_ID: message.MESSAGE_ID,
-                        RESULT: await this.sendWithResult(message.ROUTE, message.TYPE, message.DATA),
-                    });
+                    try {
+                        connection.send({
+                            MESSAGE_ID: message.MESSAGE_ID,
+                            MESSAGE_RETURN: true,
+                            RESULT: await this.sendWithResult(message.ROUTE, message.TYPE, message.DATA),
+                        });
+                    }
+                    catch (e) {
+                        connection.send({
+                            MESSAGE_ID: message.MESSAGE_ID,
+                            MESSAGE_RETURN: true,
+                            ERROR: e.toString(),
+                        });
+                    }
                 }
                 else {
-                    this.send(message.ROUTE, message.TYPE, message.DATA);
+                    try {
+                        this.send(message.ROUTE, message.TYPE, message.DATA);
+                    }
+                    catch (e) { }
                 }
             }
             else {
-                if (message.TYPE === 'TRACE_PROBE') {
-                    connection.send({
-                        MESSAGE_RESULT_ID: message.MESSAGE_ID,
-                        RESULT: this.getConnections().filter(c => c.id !== connection.id).map(c => c.id),
-                    });
-                }
-                else if (message.TYPE === 'BROADCAST') {
-                    this.emit(exports.BROADCAST_EVENTS.MESSAGE, message.DATA);
-                }
+                this.handleIncommingMessage(connection, message);
             }
         };
         this.configuration = {
             ...exports.defaultConfiguration,
             ...configuration,
         };
+        this.id = this.configuration.serverPort;
         this.server = new BroadcastServer_1.BroadcastServer(this.id, {
             port: this.configuration.serverPort,
             host: this.configuration.serverHost,
@@ -66,8 +71,8 @@ class BroadcastService extends events_1.EventEmitter {
         return this.configuration;
     }
     async initialize() {
-        this.server.on(constants_1.CONNECTION_EVENTS.MESSAGE, this.handleIncommingMessage);
-        this.client.on(constants_1.CONNECTION_EVENTS.MESSAGE, this.handleIncommingMessage);
+        this.server.on(constants_1.CONNECTION_EVENTS.MESSAGE, this.handleRoutingIncommingMessage);
+        this.client.on(constants_1.CONNECTION_EVENTS.MESSAGE, this.handleRoutingIncommingMessage);
         this.server.on(constants_1.CONNECTION_EVENTS.CLOSE, this.handleNodesConnectionsChange);
         this.server.on(constants_1.CONNECTION_EVENTS.OPEN, this.handleNodesConnectionsChange);
         this.server.on(constants_1.CONNECTION_EVENTS.HANDSHAKE_COMPLETE, this.handleNodesConnectionsChange);
@@ -90,19 +95,36 @@ class BroadcastService extends events_1.EventEmitter {
             this.send(route, 'BROADCAST', data);
         }
     }
+    async handleIncommingMessage(connection, message) {
+        if (message.TYPE === 'TRACE_PROBE') {
+            connection.send({
+                MESSAGE_ID: message.MESSAGE_ID,
+                MESSAGE_RETURN: true,
+                RESULT: this.getConnections().filter(c => c.id !== connection.id).map(c => c.id),
+            });
+        }
+        else if (message.TYPE === 'BROADCAST') {
+            this.emit(exports.BROADCAST_EVENTS.MESSAGE, message.DATA);
+        }
+    }
     async sendWithResult(targetRoute, type, data) {
         const messageId = utils_1.randomHash();
         const route = [...targetRoute];
         const firstRoute = route.shift();
         const connection = this.getConnections().find(c => c.id === firstRoute);
         if (!connection) {
-            return;
+            throw new Error(`Route to ${firstRoute} not found on node ${this.id}`);
         }
         return new Promise((resolve, reject) => {
             const handleMessage = (_, message) => {
-                if (message.MESSAGE_RESULT_ID === messageId) {
+                if (message.MESSAGE_ID === messageId && message.MESSAGE_RETURN) {
                     connection.removeListener(constants_1.CONNECTION_EVENTS.MESSAGE, handleMessage);
-                    resolve(message.RESULT);
+                    if (message.ERROR) {
+                        reject(message.ERROR);
+                    }
+                    else {
+                        resolve(message.RESULT);
+                    }
                 }
             };
             connection.addListener(constants_1.CONNECTION_EVENTS.MESSAGE, handleMessage);
@@ -114,7 +136,7 @@ class BroadcastService extends events_1.EventEmitter {
         const firstRoute = route.shift();
         const connection = this.getConnections().find(c => c.id === firstRoute);
         if (!connection) {
-            return;
+            throw new Error(`Route to ${firstRoute} not found on node ${this.id}`);
         }
         connection.send({
             MESSAGE_ID: messageId,
@@ -124,10 +146,14 @@ class BroadcastService extends events_1.EventEmitter {
         });
     }
     async updateNodesList() {
-        this.routes = this.getConnections().map(c => [c.id]);
+        this.routes = this.getConnections().filter(c => !!c.id).map(c => [c.id]);
         for (let i = 0; i < this.routes.length; i++) {
             const testingRoute = this.routes[i];
-            const result = await this.sendWithResult(testingRoute, 'TRACE_PROBE', {});
+            let result;
+            try {
+                result = await this.sendWithResult(testingRoute, 'TRACE_PROBE', {});
+            }
+            catch (e) { }
             if (!result) {
                 continue;
             }
