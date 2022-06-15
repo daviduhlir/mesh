@@ -1,8 +1,8 @@
-import { server as WebSocketServer, request as WebSocketRequest, connection as WebSocketConnection } from 'websocket'
+import { server as WebSocketServer, request as WebSocketRequest } from 'websocket'
 import * as http from 'http'
-import { promisify } from 'util'
 import { EventEmitter } from 'events'
 import { CONNECTION_EVENTS } from './utils/constants'
+import { Connection } from './Connection'
 
 export interface ServerConfiguration {
   port: number
@@ -20,9 +20,9 @@ export class BroadcastServer extends EventEmitter {
   protected httpServer: http.Server
   protected wsServer: WebSocketServer
   protected configuration: ServerConfiguration
-  protected children: {connection: WebSocketConnection; id: string;}[] = []
+  protected children: Connection[] = []
 
-  constructor(configuration: Partial<ServerConfiguration>) {
+  constructor(public readonly id, configuration: Partial<ServerConfiguration>) {
     super()
     this.configuration = {
       ...defaultConfiguration,
@@ -39,31 +39,11 @@ export class BroadcastServer extends EventEmitter {
   }
 
   /**
-   * Send data
+   * Get all connections
    */
-  public send(data: any, sender?: WebSocketConnection) {
-    const dataStringify = JSON.stringify(data)
-    for(const child of this.children) {
-      if (child.connection === sender) {
-        continue;
-      }
-      child.connection.sendUTF(dataStringify)
-    }
+  public getConnections(): Connection[] {
+    return this.children
   }
-
-  /**
-   * Get handshaken ID by connection ref
-   */
-  public getIdByConnection(connection: WebSocketConnection) {
-    return this.children.find(c => c.connection === connection)?.id
-  }
-
-  /**
-   * get all connections
-   */
-  /*public getConnections(): WebSocketConnection[] {
-    return this.connections
-  }*/
 
   /**
    * Init all server things
@@ -110,45 +90,40 @@ export class BroadcastServer extends EventEmitter {
       return;
     }
 
-    const connection = request.accept('echo-protocol', request.origin)
+    const connection = new Connection(request.accept('echo-protocol', request.origin))
+    connection.on(CONNECTION_EVENTS.MESSAGE, this.handleIncommingMessage)
+    connection.on(CONNECTION_EVENTS.CLOSE, this.handleConnectionClose)
+    connection.on(CONNECTION_EVENTS.HANDSHAKE_COMPLETE, this.handleHandshakeDone)
+    this.children.push(connection)
 
-    connection.on('message', this.handleIncommingMessage.bind(this, connection))
-    connection.on('close', this.handleConnectionClose.bind(this, connection))
+    this.emit(CONNECTION_EVENTS.OPEN)
 
-    this.emit(CONNECTION_EVENTS.OPEN, connection)
-    this.children.push({connection, id: null})
+    connection.send({
+      MESH_HANDSHAKE: this.id,
+    })
   }
 
   /**
    * Message received
    */
-  protected handleIncommingMessage = (connection: WebSocketConnection, message: any) => {
-    if (message.type === 'utf8') {
-      try {
-        const data = JSON.parse(message.utf8Data)
-        if (data.MESH_HANDSHAKE) {
-          const found = this.children.find(c => c.connection === connection)
-          if (found) {
-            found.id = data.MESH_HANDSHAKE
-          }
-
-          if (this.children.every(c => c.id !== null)) {
-            console.log('HANDSHAKE_COMPLETE', `${this.configuration.host}:${this.configuration.port}`, this.children.map(c => c.id))
-          }
-        } else {
-          this.emit(CONNECTION_EVENTS.MESSAGE, data, connection)
-        }
-      } catch(e) {
-        // TODO what to do if message is not parsable?
-      }
-    }
+  protected handleIncommingMessage = (connection: Connection, data: any) => {
+    this.emit(CONNECTION_EVENTS.MESSAGE, connection, data)
   }
 
   /**
    * Client disconnected
    */
-  protected handleConnectionClose = (connection: WebSocketConnection) => {
+  protected handleConnectionClose = (connection: Connection) => {
     this.emit(CONNECTION_EVENTS.CLOSE, connection)
-    this.children = this.children.filter(c => c.connection !== connection)
+    this.children = this.children.filter(c => c !== connection)
+  }
+
+  /**
+   * Client disconnected
+   */
+  protected handleHandshakeDone = (connection: Connection) => {
+    if (this.children.every(c => c?.id)) {
+      this.emit(CONNECTION_EVENTS.HANDSHAKE_COMPLETE)
+    }
   }
 }

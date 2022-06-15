@@ -4,35 +4,27 @@ exports.BroadcastClient = exports.defaultConfiguration = void 0;
 const websocket_1 = require("websocket");
 const events_1 = require("events");
 const constants_1 = require("./utils/constants");
-const utils_1 = require("./utils");
+const Connection_1 = require("./Connection");
 exports.defaultConfiguration = {
     urls: [],
     maxAttemps: 3,
 };
 class BroadcastClient extends events_1.EventEmitter {
-    constructor(configuration) {
+    constructor(id, configuration) {
         super();
+        this.id = id;
         this.connectionAttemp = {
             attempNumber: 0,
             urlIndex: 0,
         };
-        this.id = utils_1.randomHash();
-        this.handleOnConnectionError = (message) => {
+        this.handleOnConnectionError = (connection, message) => {
             this.resetConnection();
         };
-        this.handleOnConnectionClose = () => {
+        this.handleOnConnectionClose = (connection) => {
             this.close();
         };
-        this.handleOnMessage = (message) => {
-            if (message.type === 'utf8') {
-                try {
-                    this.emit(constants_1.CONNECTION_EVENTS.MESSAGE, JSON.parse(message.utf8Data), this.currentConnection);
-                }
-                catch (e) {
-                }
-            }
-            else if (message.type === 'binary') {
-            }
+        this.handleOnMessage = (connection, message) => {
+            this.emit(constants_1.CONNECTION_EVENTS.MESSAGE, connection, message);
         };
         this.configuration = {
             ...exports.defaultConfiguration,
@@ -59,9 +51,7 @@ class BroadcastClient extends events_1.EventEmitter {
         this.currentConnection = null;
     }
     send(data) {
-        if (this.isConnected) {
-            this.currentConnection.sendUTF(JSON.stringify(data));
-        }
+        return this.currentConnection.send(data);
     }
     async resetConnection() {
         this.close();
@@ -85,7 +75,6 @@ class BroadcastClient extends events_1.EventEmitter {
             };
             tryConnection();
         }));
-        console.log('SENDING_HANDSHAKE', this.id);
         this.send({
             MESH_HANDSHAKE: this.id,
         });
@@ -96,9 +85,10 @@ class BroadcastClient extends events_1.EventEmitter {
         }
         this.currentConnection = await (new Promise((resolve, reject) => {
             const handleOnConnect = (connection) => {
+                const newConnection = new Connection_1.Connection(connection);
                 this.wsClient.removeListener('connectFailed', handleOnConnectionFailed);
                 this.wsClient.removeListener('connect', handleOnConnect);
-                resolve(connection);
+                resolve(newConnection);
             };
             const handleOnConnectionFailed = (error) => {
                 this.wsClient.removeListener('connectFailed', handleOnConnectionFailed);
@@ -109,9 +99,9 @@ class BroadcastClient extends events_1.EventEmitter {
             this.wsClient.addListener('connect', handleOnConnect);
             this.wsClient.connect(requestedUrl, 'echo-protocol');
         }));
-        this.currentConnection.on('error', this.handleOnConnectionError);
-        this.currentConnection.on('close', this.handleOnConnectionClose);
-        this.currentConnection.on('message', this.handleOnMessage);
+        this.currentConnection.on(constants_1.CONNECTION_EVENTS.ERROR, this.handleOnConnectionError);
+        this.currentConnection.on(constants_1.CONNECTION_EVENTS.CLOSE, this.handleOnConnectionClose);
+        this.currentConnection.on(constants_1.CONNECTION_EVENTS.MESSAGE, this.handleOnMessage);
         this.emit(constants_1.CONNECTION_EVENTS.OPEN, this.currentConnection);
         return this.currentConnection;
     }

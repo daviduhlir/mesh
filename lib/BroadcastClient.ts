@@ -2,6 +2,7 @@ import { client as WebSocketClient, connection as WebSocketConnection } from 'we
 import { EventEmitter } from 'events'
 import { CONNECTION_EVENTS } from './utils/constants'
 import { randomHash } from './utils'
+import { Connection } from './Connection'
 
 export interface ClientConfiguration {
   urls: string[]
@@ -16,15 +17,13 @@ export const defaultConfiguration: ClientConfiguration = {
 export class BroadcastClient extends EventEmitter {
   protected wsClient: WebSocketClient
   protected configuration: ClientConfiguration
-  protected currentConnection: WebSocketConnection
+  protected currentConnection: Connection
   protected connectionAttemp = {
     attempNumber: 0,
     urlIndex: 0,
   }
 
-  public readonly id = randomHash()
-
-  constructor(configuration: Partial<ClientConfiguration>) {
+  constructor(public readonly id, configuration: Partial<ClientConfiguration>) {
     super()
     this.configuration = {
       ...defaultConfiguration,
@@ -36,7 +35,7 @@ export class BroadcastClient extends EventEmitter {
   /**
    * get connection
    */
-   public getConnection(): WebSocketConnection {
+   public getConnection(): Connection {
     return this.currentConnection
   }
 
@@ -71,9 +70,7 @@ export class BroadcastClient extends EventEmitter {
    * Send data
    */
   public send(data: any) {
-    if (this.isConnected) {
-      this.currentConnection.sendUTF(JSON.stringify(data))
-    }
+    return this.currentConnection.send(data)
   }
 
   /**
@@ -104,7 +101,6 @@ export class BroadcastClient extends EventEmitter {
       tryConnection()
     }))
 
-    console.log('SENDING_HANDSHAKE', this.id)
     this.send({
       MESH_HANDSHAKE: this.id,
     })
@@ -118,11 +114,13 @@ export class BroadcastClient extends EventEmitter {
       this.close()
     }
 
-    this.currentConnection = await (new Promise((resolve: (connection: WebSocketConnection) => void, reject: (error) => void) => {
+    this.currentConnection = await (new Promise((resolve: (connection: Connection) => void, reject: (error) => void) => {
       const handleOnConnect = (connection: WebSocketConnection) => {
+        const newConnection = new Connection(connection)
+
         this.wsClient.removeListener('connectFailed', handleOnConnectionFailed);
         this.wsClient.removeListener('connect', handleOnConnect)
-        resolve(connection)
+        resolve(newConnection)
       }
 
       const handleOnConnectionFailed = (error: Error) => {
@@ -137,9 +135,9 @@ export class BroadcastClient extends EventEmitter {
       this.wsClient.connect(requestedUrl, 'echo-protocol')
     }))
 
-    this.currentConnection.on('error', this.handleOnConnectionError)
-    this.currentConnection.on('close', this.handleOnConnectionClose)
-    this.currentConnection.on('message', this.handleOnMessage)
+    this.currentConnection.on(CONNECTION_EVENTS.ERROR, this.handleOnConnectionError)
+    this.currentConnection.on(CONNECTION_EVENTS.CLOSE, this.handleOnConnectionClose)
+    this.currentConnection.on(CONNECTION_EVENTS.MESSAGE, this.handleOnMessage)
 
     this.emit(CONNECTION_EVENTS.OPEN, this.currentConnection)
     return this.currentConnection
@@ -148,14 +146,14 @@ export class BroadcastClient extends EventEmitter {
   /**
    * On connection error -> will retry to connect
    */
-  protected handleOnConnectionError = (message) => {
+  protected handleOnConnectionError = (connection: Connection, message: any) => {
     this.resetConnection()
   }
 
   /**
    * Connection was closed
    */
-  protected handleOnConnectionClose = () => {
+  protected handleOnConnectionClose = (connection: Connection) => {
     // TODO connection closed... it's finished
     this.close()
   }
@@ -163,17 +161,8 @@ export class BroadcastClient extends EventEmitter {
   /**
    * Message handler
    */
-  protected handleOnMessage = (message) => {
-    if (message.type === 'utf8') {
-      try {
-        this.emit(CONNECTION_EVENTS.MESSAGE, JSON.parse(message.utf8Data), this.currentConnection)
-      } catch(e) {
-        // TODO what to do if message is not parsable?
-      }
-    }
-    else if (message.type === 'binary') {
-      // TODO can't handle this type of data for this moment
-    }
+  protected handleOnMessage = (connection: Connection, message: any) => {
+    this.emit(CONNECTION_EVENTS.MESSAGE, connection, message)
   }
 
 }

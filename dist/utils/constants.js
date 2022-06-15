@@ -5,5 +5,7 @@ exports.CONNECTION_EVENTS = {
     MESSAGE: 'MESSAGE',
     CLOSE: 'CLOSE',
     OPEN: 'OPEN',
+    HANDSHAKE_COMPLETE: 'HANDSHAKE_COMPLETE',
+    ERROR: 'ERROR',
 };
 //# sourceMappingURL=constants.js.map

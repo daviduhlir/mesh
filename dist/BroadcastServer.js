@@ -5,14 +5,16 @@ const websocket_1 = require("websocket");
 const http = require("http");
 const events_1 = require("events");
 const constants_1 = require("./utils/constants");
+const Connection_1 = require("./Connection");
 exports.defaultConfiguration = {
     port: 8080,
     host: '127.0.0.1',
     allowOrigin: (origin) => true
 };
 class BroadcastServer extends events_1.EventEmitter {
-    constructor(configuration) {
+    constructor(id, configuration) {
         super();
+        this.id = id;
         this.children = [];
         this.handleIncommingConnection = (request) => {
             if (!this.configuration.allowOrigin(request.origin)) {
@@ -20,36 +22,27 @@ class BroadcastServer extends events_1.EventEmitter {
                 console.log('Mesh Connection from origin ' + request.origin + ' rejected');
                 return;
             }
-            const connection = request.accept('echo-protocol', request.origin);
-            connection.on('message', this.handleIncommingMessage.bind(this, connection));
-            connection.on('close', this.handleConnectionClose.bind(this, connection));
-            this.emit(constants_1.CONNECTION_EVENTS.OPEN, connection);
-            this.children.push({ connection, id: null });
+            const connection = new Connection_1.Connection(request.accept('echo-protocol', request.origin));
+            connection.on(constants_1.CONNECTION_EVENTS.MESSAGE, this.handleIncommingMessage);
+            connection.on(constants_1.CONNECTION_EVENTS.CLOSE, this.handleConnectionClose);
+            connection.on(constants_1.CONNECTION_EVENTS.HANDSHAKE_COMPLETE, this.handleHandshakeDone);
+            this.children.push(connection);
+            this.emit(constants_1.CONNECTION_EVENTS.OPEN);
+            connection.send({
+                MESH_HANDSHAKE: this.id,
+            });
         };
-        this.handleIncommingMessage = (connection, message) => {
-            if (message.type === 'utf8') {
-                try {
-                    const data = JSON.parse(message.utf8Data);
-                    if (data.MESH_HANDSHAKE) {
-                        const found = this.children.find(c => c.connection === connection);
-                        if (found) {
-                            found.id = data.MESH_HANDSHAKE;
-                        }
-                        if (this.children.every(c => c.id !== null)) {
-                            console.log('HANDSHAKE_COMPLETE', `${this.configuration.host}:${this.configuration.port}`, this.children.map(c => c.id));
-                        }
-                    }
-                    else {
-                        this.emit(constants_1.CONNECTION_EVENTS.MESSAGE, data, connection);
-                    }
-                }
-                catch (e) {
-                }
-            }
+        this.handleIncommingMessage = (connection, data) => {
+            this.emit(constants_1.CONNECTION_EVENTS.MESSAGE, connection, data);
         };
         this.handleConnectionClose = (connection) => {
             this.emit(constants_1.CONNECTION_EVENTS.CLOSE, connection);
-            this.children = this.children.filter(c => c.connection !== connection);
+            this.children = this.children.filter(c => c !== connection);
+        };
+        this.handleHandshakeDone = (connection) => {
+            if (this.children.every(c => c?.id)) {
+                this.emit(constants_1.CONNECTION_EVENTS.HANDSHAKE_COMPLETE);
+            }
         };
         this.configuration = {
             ...exports.defaultConfiguration,
@@ -60,14 +53,8 @@ class BroadcastServer extends events_1.EventEmitter {
         await this.initHttpServer();
         await this.initWsServer();
     }
-    send(data, sender) {
-        const dataStringify = JSON.stringify(data);
-        for (const child of this.children) {
-            if (child.connection === sender) {
-                continue;
-            }
-            child.connection.sendUTF(dataStringify);
-        }
+    getConnections() {
+        return this.children;
     }
     async init() {
         await this.initHttpServer();
