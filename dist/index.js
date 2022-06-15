@@ -1,37 +1,14 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __exportStar = (this && this.__exportStar) || function(m, exports) {
+    for (var p in m) if (p !== "default" && !exports.hasOwnProperty(p)) __createBinding(exports, m, p);
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-const BroadcastService_1 = require("./BroadcastService");
-const s = [
-    new BroadcastService_1.BroadcastService({
-        nodesUrls: ['ws://127.0.0.1:5001/'],
-        serverPort: 5000,
-    }),
-    new BroadcastService_1.BroadcastService({
-        nodesUrls: ['ws://127.0.0.1:5002/'],
-        serverPort: 5001,
-    }),
-    new BroadcastService_1.BroadcastService({
-        nodesUrls: ['ws://127.0.0.1:5003/'],
-        serverPort: 5002,
-    }),
-    new BroadcastService_1.BroadcastService({
-        nodesUrls: ['ws://127.0.0.1:5000/'],
-        serverPort: 5003,
-    }),
-];
-s.forEach(c => {
-    c.on(BroadcastService_1.BROADCAST_EVENTS.MESSAGE, (message) => console.log('RECEIVED', c.getConfiguration().serverPort, message));
-    c.initialize();
-});
-function test(i) {
-    setTimeout(async () => {
-        console.log('Broadcast');
-        s[i].broadcast({
-            message: i + ' - Hello world'
-        });
-    }, 1000 + i * 1000);
-}
-s.forEach((c, index) => {
-    test(index);
-});
+__exportStar(require("./BroadcastService"), exports);
 //# sourceMappingURL=index.js.map
