@@ -20,7 +20,6 @@ class BroadcastService extends events_1.EventEmitter {
     constructor(configuration) {
         super();
         this.nodesList = [];
-        this.id = utils_1.randomHash();
         this.handleNodesConnectionsChange = async (connection) => {
             this.updateNodesList();
             this.broadcastInternalMessage({
@@ -29,9 +28,14 @@ class BroadcastService extends events_1.EventEmitter {
         };
         this.handleIncommingMessage = async (connection, message) => {
             if (message.MESSAGE_LIST_NODES) {
+                if (message.ORIGINAL_SENDER === this.id) {
+                    return;
+                }
+                console.log(`ORIGINAL: ${message.ORIGINAL_SENDER}`, connection.id, ' -> ', this.id);
                 connection.send({
+                    ORIGINAL_SENDER: message.ORIGINAL_SENDER,
                     MESSAGE_ID_RESULT: message.MESSAGE_ID,
-                    LIST: utils_1.arrayUnique([...message.LIST, ...(await this.listAllConnections(connection.id))]),
+                    LIST: utils_1.arrayUnique([...message.LIST, ...(await this.listAllConnections(message.ORIGINAL_SENDER, [connection.id, message.ORIGINAL_SENDER]))]),
                 });
             }
             if (message.BROADCAST_MESSAGE) {
@@ -40,12 +44,12 @@ class BroadcastService extends events_1.EventEmitter {
                         this.emit(exports.BROADCAST_EVENTS.MESSAGE, message.DATA_MESSAGE);
                     }
                     else {
-                        this.handleInternalMessage(message);
+                        this.handleInternalMessage(connection, message);
                     }
                     this.sendToAll({
                         ...message,
                         TARGET_NODES_LIST: message.TARGET_NODES_LIST.filter(t => t !== this.id)
-                    }, connection.id);
+                    }, [connection.id, message.ORIGINAL_SENDER]);
                 }
             }
             else {
@@ -55,6 +59,7 @@ class BroadcastService extends events_1.EventEmitter {
             ...exports.defaultConfiguration,
             ...configuration,
         };
+        this.id = this.configuration.serverPort;
         this.server = new BroadcastServer_1.BroadcastServer(this.id, {
             port: this.configuration.serverPort,
             host: this.configuration.serverHost,
@@ -93,16 +98,16 @@ class BroadcastService extends events_1.EventEmitter {
             DATA_MESSAGE: message,
         });
     }
-    handleInternalMessage(message) {
-        if (message.UPDATE_NODE_LIST) {
-            this.updateNodesList();
-        }
-    }
     broadcastInternalMessage(message) {
         this.sendToAll({
             TARGET_NODES_LIST: this.nodesList,
             ...message,
         });
+    }
+    handleInternalMessage(connection, message) {
+        if (message.UPDATE_NODE_LIST) {
+            this.updateNodesList();
+        }
     }
     async sendWithResult(connection, message) {
         const MESSAGE_ID = utils_1.randomHash();
@@ -120,8 +125,8 @@ class BroadcastService extends events_1.EventEmitter {
             });
         });
     }
-    sendToAll(message, excludedId) {
-        const allConnections = this.getConnections().filter(c => c?.id && c?.id !== excludedId);
+    sendToAll(message, excludedIds) {
+        const allConnections = this.getConnections().filter(c => c?.id && !excludedIds?.includes(c?.id));
         for (const listConnection of allConnections) {
             listConnection.send({
                 BROADCAST_MESSAGE: true,
@@ -129,23 +134,21 @@ class BroadcastService extends events_1.EventEmitter {
             });
         }
     }
-    async listAllConnections(excludedId) {
+    async listAllConnections(originalSender, excludedIds) {
         let list = [];
-        const allConnections = this.getConnections().filter(c => c?.id && c?.id !== excludedId);
+        const allConnections = this.getConnections().filter(c => c?.id && !excludedIds?.includes(c?.id));
         for (const listConnection of allConnections) {
-            list = utils_1.arrayUnique([...list, ...(await this.listConnection(listConnection))]);
+            const result = await this.sendWithResult(listConnection, {
+                MESSAGE_LIST_NODES: true,
+                ORIGINAL_SENDER: originalSender,
+                LIST: [...this.getConnections().map(c => c.id), this.id],
+            });
+            list = utils_1.arrayUnique([...list, ...result.LIST]);
         }
         return list;
     }
-    async listConnection(connection) {
-        const result = await this.sendWithResult(connection, {
-            MESSAGE_LIST_NODES: true,
-            LIST: [...this.getConnections().map(c => c.id), this.id],
-        });
-        return result.LIST;
-    }
     async updateNodesList() {
-        this.nodesList = await this.listAllConnections();
+        this.nodesList = await this.listAllConnections(this.id);
     }
 }
 exports.BroadcastService = BroadcastService;

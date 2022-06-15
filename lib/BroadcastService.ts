@@ -31,7 +31,7 @@ export class BroadcastService extends EventEmitter {
   protected client: BroadcastClient
   protected nodesList: string[] = []
 
-  protected readonly id: string = randomHash()
+  protected id//readonly id: string = randomHash()
 
   constructor(configuration: Partial<BroadcastServiceConfiguration>) {
     super()
@@ -40,6 +40,8 @@ export class BroadcastService extends EventEmitter {
       ...defaultConfiguration,
       ...configuration,
     }
+
+    this.id = this.configuration.serverPort
 
     this.server = new BroadcastServer(this.id, {
       port: this.configuration.serverPort,
@@ -77,6 +79,12 @@ export class BroadcastService extends EventEmitter {
     this.updateNodesList()
   }
 
+  /************************************
+   *
+   * Public interface
+   *
+   ************************************/
+
   /**
    * get all connections
    */
@@ -103,6 +111,12 @@ export class BroadcastService extends EventEmitter {
     })
   }
 
+  /************************************
+   *
+   * Handle messages and events
+   *
+   ************************************/
+
   /**
    * On new connection or closed some
    */
@@ -114,13 +128,29 @@ export class BroadcastService extends EventEmitter {
   }
 
   /**
+   * Broadcast message
+   */
+  public broadcastInternalMessage(message: any) {
+    this.sendToAll({
+      TARGET_NODES_LIST: this.nodesList,
+      ...message,
+    })
+  }
+
+  /**
    * Message received
    */
   protected handleIncommingMessage = async (connection: Connection, message: any) => {
+    // just for sure, if message is back in same service
     if (message.MESSAGE_LIST_NODES) {
+      if (message.ORIGINAL_SENDER === this.id) {
+        return
+      }
+
       connection.send({
+        ORIGINAL_SENDER: message.ORIGINAL_SENDER,
         MESSAGE_ID_RESULT: message.MESSAGE_ID,
-        LIST: arrayUnique([...message.LIST, ...(await this.listAllConnections(connection.id))]),
+        LIST: arrayUnique([...message.LIST, ...(await this.listAllConnections(message.ORIGINAL_SENDER, [connection.id, message.ORIGINAL_SENDER]))]),
       })
     } if (message.BROADCAST_MESSAGE) {
       if ((message.TARGET_NODES_LIST as string[]).includes(this.id)) {
@@ -128,33 +158,26 @@ export class BroadcastService extends EventEmitter {
         if (message.DATA_MESSAGE) {
           this.emit(BROADCAST_EVENTS.MESSAGE, message.DATA_MESSAGE)
         } else {
-          this.handleInternalMessage(message)
+          this.handleInternalMessage(connection, message)
         }
 
         this.sendToAll({
           ...message,
           TARGET_NODES_LIST: message.TARGET_NODES_LIST.filter(t => t!== this.id)
-        }, connection.id)
+        }, [connection.id, message.ORIGINAL_SENDER])
       }
     } else {
       // TODO anything else!
     }
   }
 
-  protected handleInternalMessage(message: any) {
+  /**
+   * Internal messages routings
+   */
+  protected handleInternalMessage(connection: Connection, message: any) {
     if (message.UPDATE_NODE_LIST) {
       this.updateNodesList()
     }
-  }
-
-  /**
-   * Broadcast message
-   */
-   public broadcastInternalMessage(message: any) {
-    this.sendToAll({
-      TARGET_NODES_LIST: this.nodesList,
-      ...message,
-    })
   }
 
   /************************************
@@ -164,9 +187,9 @@ export class BroadcastService extends EventEmitter {
    ************************************/
 
   /**
-   * List single connection
+   * Send message and wait for result
    */
-   protected async sendWithResult(connection: Connection, message: any) {
+  protected async sendWithResult(connection: Connection, message: any) {
     const MESSAGE_ID = randomHash()
     return new Promise((resolve: (response: any) => void, reject: (error) => void) => {
 
@@ -185,8 +208,11 @@ export class BroadcastService extends EventEmitter {
     })
   }
 
-  protected sendToAll(message: any, excludedId?: string) {
-    const allConnections = this.getConnections().filter(c => c?.id && c?.id !== excludedId)
+  /**
+   * Send message to all
+   */
+  protected sendToAll(message: any, excludedIds?: string[]) {
+    const allConnections = this.getConnections().filter(c => c?.id && !excludedIds?.includes(c?.id))
     for(const listConnection of allConnections) {
       listConnection.send({
         BROADCAST_MESSAGE: true,
@@ -204,30 +230,26 @@ export class BroadcastService extends EventEmitter {
   /**
    * Get list of nodes from all my connectors
    */
-  protected async listAllConnections(excludedId?: string) {
+  protected async listAllConnections(originalSender: string, excludedIds?: string[]) {
     let list = []
-    const allConnections = this.getConnections().filter(c => c?.id && c?.id !== excludedId)
+    const allConnections = this.getConnections().filter(c => c?.id && !excludedIds?.includes(c?.id))
     for(const listConnection of allConnections) {
-      list = arrayUnique([...list, ...(await this.listConnection(listConnection))])
+
+      const result = await this.sendWithResult(listConnection, {
+        MESSAGE_LIST_NODES: true,
+        ORIGINAL_SENDER: originalSender,
+        LIST: [...this.getConnections().map(c => c.id), this.id],
+      })
+
+      list = arrayUnique([...list, ...result.LIST])
     }
     return list
-  }
-
-  /**
-   * List single connection
-   */
-  protected async listConnection(connection: Connection) {
-    const result = await this.sendWithResult(connection, {
-      MESSAGE_LIST_NODES: true,
-      LIST: [...this.getConnections().map(c => c.id), this.id],
-    })
-    return result.LIST
   }
 
   /**
    * Update nodes list by listing in net
    */
   protected async updateNodesList() {
-    this.nodesList = await this.listAllConnections()
+    this.nodesList = await this.listAllConnections(this.id)
   }
 }
