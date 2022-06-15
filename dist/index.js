@@ -36,4 +36,9 @@ setTimeout(async () => {
     console.log('5003', await s[3].getNodesList());
     console.log('5004', await s[4].getNodesList());
 }, 2000);
+setTimeout(async () => {
+    s[4].broadcast({
+        message: 'Hello world'
+    });
+}, 3000);
 //# sourceMappingURL=index.js.map
