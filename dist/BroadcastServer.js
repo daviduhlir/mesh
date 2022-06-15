@@ -41,7 +41,7 @@ class BroadcastServer extends events_1.EventEmitter {
         };
         this.handleHandshakeDone = (connection) => {
             if (this.children.every(c => c?.id)) {
-                this.emit(constants_1.CONNECTION_EVENTS.HANDSHAKE_COMPLETE);
+                this.emit(constants_1.CONNECTION_EVENTS.HANDSHAKE_COMPLETE, connection);
             }
         };
         this.configuration = {

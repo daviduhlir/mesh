@@ -7,32 +7,16 @@ const s = [
         serverPort: 5000,
     }),
     new BroadcastService_1.BroadcastService({
-        nodesUrls: ['ws://127.0.0.1:5021/'],
+        nodesUrls: ['ws://127.0.0.1:5002/'],
         serverPort: 5001,
     }),
     new BroadcastService_1.BroadcastService({
-        nodesUrls: ['ws://127.0.0.1:5001/'],
-        serverPort: 5010,
-    }),
-    new BroadcastService_1.BroadcastService({
-        nodesUrls: ['ws://127.0.0.1:5001/'],
-        serverPort: 5011,
+        nodesUrls: ['ws://127.0.0.1:5003/'],
+        serverPort: 5002,
     }),
     new BroadcastService_1.BroadcastService({
         nodesUrls: ['ws://127.0.0.1:5000/'],
-        serverPort: 5012,
-    }),
-    new BroadcastService_1.BroadcastService({
-        nodesUrls: ['ws://127.0.0.1:5000/'],
-        serverPort: 5013,
-    }),
-    new BroadcastService_1.BroadcastService({
-        nodesUrls: ['ws://127.0.0.1:5013/'],
-        serverPort: 5020,
-    }),
-    new BroadcastService_1.BroadcastService({
-        nodesUrls: ['ws://127.0.0.1:5020/'],
-        serverPort: 5021,
+        serverPort: 5003,
     }),
 ];
 s.forEach(c => {
@@ -47,12 +31,7 @@ function test(i) {
         });
     }, 1000 + i * 1000);
 }
-test(0);
-test(1);
-test(2);
-test(3);
-test(4);
-test(5);
-test(6);
-test(7);
+s.forEach((c, index) => {
+    test(index);
+});
 //# sourceMappingURL=index.js.map

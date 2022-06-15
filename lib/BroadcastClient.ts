@@ -1,7 +1,6 @@
 import { client as WebSocketClient, connection as WebSocketConnection } from 'websocket'
 import { EventEmitter } from 'events'
 import { CONNECTION_EVENTS } from './utils/constants'
-import { randomHash } from './utils'
 import { Connection } from './Connection'
 
 export interface ClientConfiguration {
@@ -138,6 +137,7 @@ export class BroadcastClient extends EventEmitter {
     this.currentConnection.on(CONNECTION_EVENTS.ERROR, this.handleOnConnectionError)
     this.currentConnection.on(CONNECTION_EVENTS.CLOSE, this.handleOnConnectionClose)
     this.currentConnection.on(CONNECTION_EVENTS.MESSAGE, this.handleOnMessage)
+    this.currentConnection.on(CONNECTION_EVENTS.HANDSHAKE_COMPLETE, this.handleHandshakeComplete)
 
     this.emit(CONNECTION_EVENTS.OPEN, this.currentConnection)
     return this.currentConnection
@@ -163,6 +163,13 @@ export class BroadcastClient extends EventEmitter {
    */
   protected handleOnMessage = (connection: Connection, message: any) => {
     this.emit(CONNECTION_EVENTS.MESSAGE, connection, message)
+  }
+
+  /**
+   * Message handler
+   */
+  protected handleHandshakeComplete = (connection: Connection) => {
+    this.emit(CONNECTION_EVENTS.HANDSHAKE_COMPLETE, connection)
   }
 
 }

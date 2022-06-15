@@ -31,7 +31,7 @@ export class BroadcastService extends EventEmitter {
   protected client: BroadcastClient
   protected routes: string[][] = []
 
-  protected id//readonly id: string = randomHash()
+  protected readonly id: string = randomHash()
 
   constructor(configuration: Partial<BroadcastServiceConfiguration>) {
     super()
@@ -40,8 +40,6 @@ export class BroadcastService extends EventEmitter {
       ...defaultConfiguration,
       ...configuration,
     }
-
-    this.id = this.configuration.serverPort
 
     this.server = new BroadcastServer(this.id, {
       port: this.configuration.serverPort,
@@ -67,10 +65,11 @@ export class BroadcastService extends EventEmitter {
    */
   public async initialize() {
     this.server.on(CONNECTION_EVENTS.MESSAGE, this.handleIncommingMessage)
+    this.client.on(CONNECTION_EVENTS.MESSAGE, this.handleIncommingMessage)
+
     this.server.on(CONNECTION_EVENTS.CLOSE, this.handleNodesConnectionsChange)
     this.server.on(CONNECTION_EVENTS.OPEN, this.handleNodesConnectionsChange)
     this.server.on(CONNECTION_EVENTS.HANDSHAKE_COMPLETE, this.handleNodesConnectionsChange)
-    this.client.on(CONNECTION_EVENTS.MESSAGE, this.handleIncommingMessage)
     this.client.on(CONNECTION_EVENTS.HANDSHAKE_COMPLETE, this.handleNodesConnectionsChange)
 
     await this.server.initialize()

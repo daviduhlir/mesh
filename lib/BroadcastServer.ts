@@ -123,7 +123,7 @@ export class BroadcastServer extends EventEmitter {
    */
   protected handleHandshakeDone = (connection: Connection) => {
     if (this.children.every(c => c?.id)) {
-      this.emit(CONNECTION_EVENTS.HANDSHAKE_COMPLETE)
+      this.emit(CONNECTION_EVENTS.HANDSHAKE_COMPLETE, connection)
     }
   }
 }

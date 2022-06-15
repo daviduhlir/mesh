@@ -26,6 +26,9 @@ class BroadcastClient extends events_1.EventEmitter {
         this.handleOnMessage = (connection, message) => {
             this.emit(constants_1.CONNECTION_EVENTS.MESSAGE, connection, message);
         };
+        this.handleHandshakeComplete = (connection) => {
+            this.emit(constants_1.CONNECTION_EVENTS.HANDSHAKE_COMPLETE, connection);
+        };
         this.configuration = {
             ...exports.defaultConfiguration,
             ...configuration,
@@ -102,6 +105,7 @@ class BroadcastClient extends events_1.EventEmitter {
         this.currentConnection.on(constants_1.CONNECTION_EVENTS.ERROR, this.handleOnConnectionError);
         this.currentConnection.on(constants_1.CONNECTION_EVENTS.CLOSE, this.handleOnConnectionClose);
         this.currentConnection.on(constants_1.CONNECTION_EVENTS.MESSAGE, this.handleOnMessage);
+        this.currentConnection.on(constants_1.CONNECTION_EVENTS.HANDSHAKE_COMPLETE, this.handleHandshakeComplete);
         this.emit(constants_1.CONNECTION_EVENTS.OPEN, this.currentConnection);
         return this.currentConnection;
     }

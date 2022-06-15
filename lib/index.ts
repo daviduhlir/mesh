@@ -1,7 +1,7 @@
 import { BroadcastService, BROADCAST_EVENTS } from './BroadcastService'
 
 const s = [
-  new BroadcastService({
+  /*new BroadcastService({
     nodesUrls: [ 'ws://127.0.0.1:5001/'],
     serverPort: 5000,
   }),
@@ -35,6 +35,23 @@ const s = [
   new BroadcastService({
     nodesUrls: ['ws://127.0.0.1:5020/'],
     serverPort: 5021,
+  }),*/
+
+  new BroadcastService({
+    nodesUrls: [ 'ws://127.0.0.1:5001/'],
+    serverPort: 5000,
+  }),
+  new BroadcastService({
+    nodesUrls: ['ws://127.0.0.1:5002/'],
+    serverPort: 5001,
+  }),
+  new BroadcastService({
+    nodesUrls: ['ws://127.0.0.1:5003/'],
+    serverPort: 5002,
+  }),
+  new BroadcastService({
+    nodesUrls: ['ws://127.0.0.1:5000/'],
+    serverPort: 5003,
   }),
 ]
 
@@ -52,11 +69,6 @@ function test(i: number) {
   }, 1000 + i * 1000)
 }
 
-test(0)
-test(1)
-test(2)
-test(3)
-test(4)
-test(5)
-test(6)
-test(7)
+s.forEach((c, index) => {
+  test(index)
+})

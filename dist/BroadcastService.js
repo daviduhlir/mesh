@@ -20,6 +20,7 @@ class BroadcastService extends events_1.EventEmitter {
     constructor(configuration) {
         super();
         this.routes = [];
+        this.id = utils_1.randomHash();
         this.handleNodesConnectionsChange = async (connection) => {
             this.updateNodesList();
         };
@@ -51,7 +52,6 @@ class BroadcastService extends events_1.EventEmitter {
             ...exports.defaultConfiguration,
             ...configuration,
         };
-        this.id = this.configuration.serverPort;
         this.server = new BroadcastServer_1.BroadcastServer(this.id, {
             port: this.configuration.serverPort,
             host: this.configuration.serverHost,
@@ -67,10 +67,10 @@ class BroadcastService extends events_1.EventEmitter {
     }
     async initialize() {
         this.server.on(constants_1.CONNECTION_EVENTS.MESSAGE, this.handleIncommingMessage);
+        this.client.on(constants_1.CONNECTION_EVENTS.MESSAGE, this.handleIncommingMessage);
         this.server.on(constants_1.CONNECTION_EVENTS.CLOSE, this.handleNodesConnectionsChange);
         this.server.on(constants_1.CONNECTION_EVENTS.OPEN, this.handleNodesConnectionsChange);
         this.server.on(constants_1.CONNECTION_EVENTS.HANDSHAKE_COMPLETE, this.handleNodesConnectionsChange);
-        this.client.on(constants_1.CONNECTION_EVENTS.MESSAGE, this.handleIncommingMessage);
         this.client.on(constants_1.CONNECTION_EVENTS.HANDSHAKE_COMPLETE, this.handleNodesConnectionsChange);
         await this.server.initialize();
         await this.client.initialize();

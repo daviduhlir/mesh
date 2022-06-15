@@ -1,5 +1,4 @@
 import { connection as WebSocketConnection } from 'websocket'
-import { randomHash } from './utils'
 import { EventEmitter } from 'events'
 import { CONNECTION_EVENTS } from './utils/constants'
 

@@ -27,4 +27,5 @@ export declare class BroadcastClient extends EventEmitter {
     protected handleOnConnectionError: (connection: Connection, message: any) => void;
     protected handleOnConnectionClose: (connection: Connection) => void;
     protected handleOnMessage: (connection: Connection, message: any) => void;
+    protected handleHandshakeComplete: (connection: Connection) => void;
 }
