@@ -18,20 +18,17 @@ export declare class BroadcastService extends EventEmitter {
     protected configuration: BroadcastServiceConfiguration;
     protected server: BroadcastServer;
     protected client: BroadcastClient;
-    protected nodesList: string[];
+    protected routes: string[][];
     protected id: any;
     constructor(configuration: Partial<BroadcastServiceConfiguration>);
     getConfiguration(): BroadcastServiceConfiguration;
     initialize(): Promise<void>;
     getConnections(): Connection[];
     getNodesList(): Promise<string[]>;
-    broadcast(message: any): void;
+    broadcast(data: any): void;
     protected handleNodesConnectionsChange: (connection: Connection) => Promise<void>;
-    broadcastInternalMessage(message: any): void;
     protected handleIncommingMessage: (connection: Connection, message: any) => Promise<void>;
-    protected handleInternalMessage(connection: Connection, message: any): void;
-    protected sendWithResult(connection: Connection, message: any): Promise<any>;
-    protected sendToAll(message: any, excludedIds?: string[]): void;
-    protected listAllConnections(originalSender: string, excludedIds?: string[]): Promise<any[]>;
+    protected sendWithResult(targetRoute: string[], type: string, data: any): Promise<any>;
+    protected send(targetRoute: string[], type: string, data: any, messageId?: string): Promise<void>;
     protected updateNodesList(): Promise<void>;
 }

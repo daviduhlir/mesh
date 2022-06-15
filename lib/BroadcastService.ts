@@ -1,7 +1,7 @@
 import { BroadcastServer } from './BroadcastServer'
 import { BroadcastClient } from './BroadcastClient'
 import { CONNECTION_EVENTS } from './utils/constants'
-import { arrayUnique, randomHash } from './utils'
+import { randomHash } from './utils'
 import { Connection } from './Connection'
 import { EventEmitter } from 'events'
 
@@ -29,7 +29,7 @@ export class BroadcastService extends EventEmitter {
   protected configuration: BroadcastServiceConfiguration
   protected server: BroadcastServer
   protected client: BroadcastClient
-  protected nodesList: string[] = []
+  protected routes: string[][] = []
 
   protected id//readonly id: string = randomHash()
 
@@ -99,16 +99,16 @@ export class BroadcastService extends EventEmitter {
    * Get list of nodes
    */
   public async getNodesList(): Promise<string[]> {
-    return this.nodesList
+    return this.routes.map(r => r[r.length - 1])
   }
 
   /**
    * Broadcast message
    */
-  public broadcast(message: any) {
-    this.broadcastInternalMessage({
-      DATA_MESSAGE: message,
-    })
+  public broadcast(data: any) {
+    for(const route of this.routes) {
+      this.send(route, 'BROADCAST', data)
+    }
   }
 
   /************************************
@@ -122,61 +122,31 @@ export class BroadcastService extends EventEmitter {
    */
   protected handleNodesConnectionsChange = async (connection: Connection) => {
     this.updateNodesList()
-    this.broadcastInternalMessage({
-      UPDATE_NODE_LIST: true
-    })
-  }
-
-  /**
-   * Broadcast message
-   */
-  public broadcastInternalMessage(message: any) {
-    this.sendToAll({
-      TARGET_NODES_LIST: this.nodesList,
-      ...message,
-    })
   }
 
   /**
    * Message received
    */
   protected handleIncommingMessage = async (connection: Connection, message: any) => {
-    // just for sure, if message is back in same service
-    if (message.ORIGINAL_SENDER === this.id) {
-      return
-    }
+    if (message.ROUTE?.length) {
 
-    if (message.MESSAGE_LIST_NODES) {
-      connection.send({
-        ORIGINAL_SENDER: message.ORIGINAL_SENDER,
-        MESSAGE_ID_RESULT: message.MESSAGE_ID,
-        LIST: arrayUnique([...message.LIST, ...(await this.listAllConnections(message.ORIGINAL_SENDER, [connection.id, message.ORIGINAL_SENDER]))]),
-      })
-    } if (message.BROADCAST_MESSAGE) {
-      if ((message.TARGET_NODES_LIST as string[]).includes(this.id)) {
-
-        if (message.DATA_MESSAGE) {
-          this.emit(BROADCAST_EVENTS.MESSAGE, message.DATA_MESSAGE)
-        } else {
-          this.handleInternalMessage(connection, message)
-        }
-
-        this.sendToAll({
-          ...message,
-          TARGET_NODES_LIST: message.TARGET_NODES_LIST.filter(t => t!== this.id)
-        }, [connection.id, message.ORIGINAL_SENDER])
+      if (message.MESSAGE_ID) {
+        connection.send({
+          MESSAGE_RESULT_ID: message.MESSAGE_ID,
+          RESULT: await this.sendWithResult(message.ROUTE, message.TYPE, message.DATA),
+        })
+      } else {
+        this.send(message.ROUTE, message.TYPE, message.DATA)
       }
     } else {
-      // TODO anything else!
-    }
-  }
-
-  /**
-   * Internal messages routings
-   */
-  protected handleInternalMessage(connection: Connection, message: any) {
-    if (message.UPDATE_NODE_LIST) {
-      this.updateNodesList()
+      if (message.TYPE === 'TRACE_PROBE') {
+        connection.send({
+          MESSAGE_RESULT_ID: message.MESSAGE_ID,
+          RESULT: this.getConnections().filter(c => c.id !== connection.id).map(c => c.id),
+        })
+      } else if (message.TYPE === 'BROADCAST') {
+        this.emit(BROADCAST_EVENTS.MESSAGE, message.DATA)
+      }
     }
   }
 
@@ -189,36 +159,42 @@ export class BroadcastService extends EventEmitter {
   /**
    * Send message and wait for result
    */
-  protected async sendWithResult(connection: Connection, message: any) {
-    const MESSAGE_ID = randomHash()
-    return new Promise((resolve: (response: any) => void, reject: (error) => void) => {
+  protected async sendWithResult(targetRoute: string[], type: string, data: any) {
+    const messageId = randomHash()
+    const route = [...targetRoute]
+    const firstRoute = route.shift()
+    const connection = this.getConnections().find(c => c.id === firstRoute)
+    if (!connection) {
+      return
+    }
 
+    return new Promise((resolve: (response: any) => void, reject: (error) => void) => {
       const handleMessage = (_: Connection, message: any) => {
-        if (message.MESSAGE_ID_RESULT === MESSAGE_ID) {
+        if (message.MESSAGE_RESULT_ID === messageId) {
           connection.removeListener(CONNECTION_EVENTS.MESSAGE, handleMessage)
-          resolve(message)
+          resolve(message.RESULT)
         }
       }
 
       connection.addListener(CONNECTION_EVENTS.MESSAGE, handleMessage)
-      connection.send({
-        MESSAGE_ID,
-        ...message,
-      })
+      this.send(targetRoute, type, data, messageId)
     })
   }
 
-  /**
-   * Send message to all
-   */
-  protected sendToAll(message: any, excludedIds?: string[]) {
-    const allConnections = this.getConnections().filter(c => c?.id && !excludedIds?.includes(c?.id))
-    for(const listConnection of allConnections) {
-      listConnection.send({
-        BROADCAST_MESSAGE: true,
-        ...message,
-      })
+  protected async send(targetRoute: string[], type: string, data: any, messageId?: string) {
+    const route = [...targetRoute]
+    const firstRoute = route.shift()
+    const connection = this.getConnections().find(c => c.id === firstRoute)
+    if (!connection) {
+      return
     }
+
+    connection.send({
+      MESSAGE_ID: messageId,
+      TYPE: type,
+      ROUTE: route,
+      DATA: data,
+    })
   }
 
   /************************************
@@ -228,28 +204,33 @@ export class BroadcastService extends EventEmitter {
    ************************************/
 
   /**
-   * Get list of nodes from all my connectors
-   */
-  protected async listAllConnections(originalSender: string, excludedIds?: string[]) {
-    let list = []
-    const allConnections = this.getConnections().filter(c => c?.id && !excludedIds?.includes(c?.id))
-    for(const listConnection of allConnections) {
-
-      const result = await this.sendWithResult(listConnection, {
-        MESSAGE_LIST_NODES: true,
-        ORIGINAL_SENDER: originalSender,
-        LIST: [...this.getConnections().map(c => c.id), this.id],
-      })
-
-      list = arrayUnique([...list, ...result.LIST])
-    }
-    return list
-  }
-
-  /**
    * Update nodes list by listing in net
    */
   protected async updateNodesList() {
-    this.nodesList = await this.listAllConnections(this.id)
+    this.routes = this.getConnections().map(c => [c.id])
+
+    for(let i = 0; i < this.routes.length; i++) {
+      const testingRoute = this.routes[i]
+      const result = await this.sendWithResult(testingRoute, 'TRACE_PROBE', {})
+
+      if (!result) {
+        continue
+      }
+
+      for(const next of result) {
+        const newRoute = [...testingRoute, next]
+
+        const foundSameTargetIndex = this.routes.findIndex(r => r[r.length - 1] === next)
+        if (foundSameTargetIndex !== -1) {
+          // optimization - apply shorter way
+          if (newRoute.length < this.routes[foundSameTargetIndex].length) {
+            this.routes[foundSameTargetIndex] = newRoute
+          }
+        } else {
+          // new route
+          this.routes.push(newRoute)
+        }
+      }
+    }
   }
 }

@@ -19,39 +19,32 @@ exports.defaultConfiguration = {
 class BroadcastService extends events_1.EventEmitter {
     constructor(configuration) {
         super();
-        this.nodesList = [];
+        this.routes = [];
         this.handleNodesConnectionsChange = async (connection) => {
             this.updateNodesList();
-            this.broadcastInternalMessage({
-                UPDATE_NODE_LIST: true
-            });
         };
         this.handleIncommingMessage = async (connection, message) => {
-            if (message.ORIGINAL_SENDER === this.id) {
-                return;
-            }
-            if (message.MESSAGE_LIST_NODES) {
-                connection.send({
-                    ORIGINAL_SENDER: message.ORIGINAL_SENDER,
-                    MESSAGE_ID_RESULT: message.MESSAGE_ID,
-                    LIST: utils_1.arrayUnique([...message.LIST, ...(await this.listAllConnections(message.ORIGINAL_SENDER, [connection.id, message.ORIGINAL_SENDER]))]),
-                });
-            }
-            if (message.BROADCAST_MESSAGE) {
-                if (message.TARGET_NODES_LIST.includes(this.id)) {
-                    if (message.DATA_MESSAGE) {
-                        this.emit(exports.BROADCAST_EVENTS.MESSAGE, message.DATA_MESSAGE);
-                    }
-                    else {
-                        this.handleInternalMessage(connection, message);
-                    }
-                    this.sendToAll({
-                        ...message,
-                        TARGET_NODES_LIST: message.TARGET_NODES_LIST.filter(t => t !== this.id)
-                    }, [connection.id, message.ORIGINAL_SENDER]);
+            if (message.ROUTE?.length) {
+                if (message.MESSAGE_ID) {
+                    connection.send({
+                        MESSAGE_RESULT_ID: message.MESSAGE_ID,
+                        RESULT: await this.sendWithResult(message.ROUTE, message.TYPE, message.DATA),
+                    });
+                }
+                else {
+                    this.send(message.ROUTE, message.TYPE, message.DATA);
                 }
             }
             else {
+                if (message.TYPE === 'TRACE_PROBE') {
+                    connection.send({
+                        MESSAGE_RESULT_ID: message.MESSAGE_ID,
+                        RESULT: this.getConnections().filter(c => c.id !== connection.id).map(c => c.id),
+                    });
+                }
+                else if (message.TYPE === 'BROADCAST') {
+                    this.emit(exports.BROADCAST_EVENTS.MESSAGE, message.DATA);
+                }
             }
         };
         this.configuration = {
@@ -90,64 +83,67 @@ class BroadcastService extends events_1.EventEmitter {
             .filter((value, index, self) => self.findIndex(i => i.id === value.id) === index);
     }
     async getNodesList() {
-        return this.nodesList;
+        return this.routes.map(r => r[r.length - 1]);
     }
-    broadcast(message) {
-        this.broadcastInternalMessage({
-            DATA_MESSAGE: message,
-        });
-    }
-    broadcastInternalMessage(message) {
-        this.sendToAll({
-            TARGET_NODES_LIST: this.nodesList,
-            ...message,
-        });
-    }
-    handleInternalMessage(connection, message) {
-        if (message.UPDATE_NODE_LIST) {
-            this.updateNodesList();
+    broadcast(data) {
+        for (const route of this.routes) {
+            this.send(route, 'BROADCAST', data);
         }
     }
-    async sendWithResult(connection, message) {
-        const MESSAGE_ID = utils_1.randomHash();
+    async sendWithResult(targetRoute, type, data) {
+        const messageId = utils_1.randomHash();
+        const route = [...targetRoute];
+        const firstRoute = route.shift();
+        const connection = this.getConnections().find(c => c.id === firstRoute);
+        if (!connection) {
+            return;
+        }
         return new Promise((resolve, reject) => {
             const handleMessage = (_, message) => {
-                if (message.MESSAGE_ID_RESULT === MESSAGE_ID) {
+                if (message.MESSAGE_RESULT_ID === messageId) {
                     connection.removeListener(constants_1.CONNECTION_EVENTS.MESSAGE, handleMessage);
-                    resolve(message);
+                    resolve(message.RESULT);
                 }
             };
             connection.addListener(constants_1.CONNECTION_EVENTS.MESSAGE, handleMessage);
-            connection.send({
-                MESSAGE_ID,
-                ...message,
-            });
+            this.send(targetRoute, type, data, messageId);
         });
     }
-    sendToAll(message, excludedIds) {
-        const allConnections = this.getConnections().filter(c => c?.id && !excludedIds?.includes(c?.id));
-        for (const listConnection of allConnections) {
-            listConnection.send({
-                BROADCAST_MESSAGE: true,
-                ...message,
-            });
+    async send(targetRoute, type, data, messageId) {
+        const route = [...targetRoute];
+        const firstRoute = route.shift();
+        const connection = this.getConnections().find(c => c.id === firstRoute);
+        if (!connection) {
+            return;
         }
-    }
-    async listAllConnections(originalSender, excludedIds) {
-        let list = [];
-        const allConnections = this.getConnections().filter(c => c?.id && !excludedIds?.includes(c?.id));
-        for (const listConnection of allConnections) {
-            const result = await this.sendWithResult(listConnection, {
-                MESSAGE_LIST_NODES: true,
-                ORIGINAL_SENDER: originalSender,
-                LIST: [...this.getConnections().map(c => c.id), this.id],
-            });
-            list = utils_1.arrayUnique([...list, ...result.LIST]);
-        }
-        return list;
+        connection.send({
+            MESSAGE_ID: messageId,
+            TYPE: type,
+            ROUTE: route,
+            DATA: data,
+        });
     }
     async updateNodesList() {
-        this.nodesList = await this.listAllConnections(this.id);
+        this.routes = this.getConnections().map(c => [c.id]);
+        for (let i = 0; i < this.routes.length; i++) {
+            const testingRoute = this.routes[i];
+            const result = await this.sendWithResult(testingRoute, 'TRACE_PROBE', {});
+            if (!result) {
+                continue;
+            }
+            for (const next of result) {
+                const newRoute = [...testingRoute, next];
+                const foundSameTargetIndex = this.routes.findIndex(r => r[r.length - 1] === next);
+                if (foundSameTargetIndex !== -1) {
+                    if (newRoute.length < this.routes[foundSameTargetIndex].length) {
+                        this.routes[foundSameTargetIndex] = newRoute;
+                    }
+                }
+                else {
+                    this.routes.push(newRoute);
+                }
+            }
+        }
     }
 }
 exports.BroadcastService = BroadcastService;
