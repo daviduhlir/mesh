@@ -2,6 +2,11 @@ import { connection as WebSocketConnection } from 'websocket'
 import { EventEmitter } from 'events'
 import { CONNECTION_EVENTS } from '../utils/constants'
 
+/**
+ * Connection class is simple representation of
+ * websocket connection.
+ * It provides handshake functionality and send/receive messages
+ */
 export class Connection extends EventEmitter {
   protected internalId: string
 
@@ -14,18 +19,23 @@ export class Connection extends EventEmitter {
     connection.on('close', () => this.emit(CONNECTION_EVENTS.CLOSE, this))
   }
 
+  /**
+   * Get ID of node, that is connected by this connection
+   */
   public get id(): string {
     return this.internalId
   }
 
-  public handshake(id: string) {
-    this.internalId = id
-  }
-
+  /**
+   * Get if connection was established
+   */
   public get connected(): boolean {
     return this.connection?.connected
   }
 
+  /**
+   * Close connection
+   */
   public close() {
     this.connection.removeAllListeners()
     return this.connection.close()
@@ -38,6 +48,13 @@ export class Connection extends EventEmitter {
     if (this.connection.connected) {
       this.connection.sendUTF(JSON.stringify(data))
     }
+  }
+
+  /**
+   * Setup handshake
+   */
+   protected handshake(id: string) {
+    this.internalId = id
   }
 
   /**
