@@ -40,18 +40,22 @@ const s = [
   new BroadcastService({
     nodesUrls: [ 'ws://127.0.0.1:5001/'],
     serverPort: 5000,
+    nodeName: 'Server1',
   }),
   new BroadcastService({
     nodesUrls: ['ws://127.0.0.1:5002/'],
     serverPort: 5001,
+    nodeName: 'Server2',
   }),
   new BroadcastService({
     nodesUrls: ['ws://127.0.0.1:5003/'],
     serverPort: 5002,
+    nodeName: 'Server3',
   }),
   new BroadcastService({
     nodesUrls: ['ws://127.0.0.1:5000/'],
     serverPort: 5003,
+    nodeName: 'Server4',
   }),
 ]
 
@@ -59,6 +63,14 @@ s.forEach(c => {
   c.on(BROADCAST_EVENTS.MESSAGE, (message) => console.log('RECEIVED', c.getConfiguration().serverPort, message))
   c.initialize()
 })
+
+/*setTimeout(async () => {
+  console.log('Node names')
+  console.log(s[0].getNamedNodes())
+  s[0].broadcastToNode('Server4', {
+    SOMETHING: 'Hello world'
+  })
+}, 1000)*/
 
 function test(i: number) {
   setTimeout(async () => {

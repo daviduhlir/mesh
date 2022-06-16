@@ -7,7 +7,9 @@ const constants_1 = require("./utils/constants");
 const utils_1 = require("./utils/utils");
 const events_1 = require("events");
 exports.BROADCAST_EVENTS = {
-    MESSAGE: 'MESSAGE'
+    MESSAGE: 'MESSAGE',
+    NETWORK_CHANGE: 'NETWORK_CHANGE',
+    NODE_IDENTIFICATION: 'NODE_IDENTIFICATION',
 };
 exports.defaultConfiguration = {
     nodesUrls: ['ws://127.0.0.1:8080'],
@@ -20,9 +22,11 @@ class BroadcastService extends events_1.EventEmitter {
     constructor(configuration) {
         super();
         this.routes = [];
+        this.nodeNames = {};
         this.id = utils_1.randomHash();
         this.handleNodesConnectionsChange = async (connection) => {
             this.updateNodesList();
+            this.emit(exports.BROADCAST_EVENTS.NETWORK_CHANGE);
         };
         this.handleRoutingIncommingMessage = async (connection, message) => {
             if (message.ROUTE?.length) {
@@ -87,13 +91,30 @@ class BroadcastService extends events_1.EventEmitter {
             .filter(Boolean)
             .filter((value, index, self) => self.findIndex(i => i.id === value.id) === index);
     }
-    async getNodesList() {
+    getNodesList() {
         return this.routes.map(r => r[r.length - 1]);
+    }
+    getNamedNodes() {
+        console.log(this.nodeNames);
+        return Object.keys(this.nodeNames).reduce((acc, id) => ({
+            ...acc,
+            [this.nodeNames[id]]: [...(acc[this.nodeNames[id]] || []), id]
+        }), {});
     }
     broadcast(data) {
         for (const route of this.routes) {
             this.send(route, 'BROADCAST', data);
         }
+    }
+    broadcastToNode(identificator, data) {
+        const knownNamesIds = Object.keys(this.nodeNames);
+        const foundInNameId = knownNamesIds.find(id => this.nodeNames[id] === identificator);
+        const lookupId = foundInNameId || identificator;
+        const route = this.routes.find(r => r[r.length - 1] === lookupId);
+        if (!route) {
+            throw new Error(`Route to target ${identificator} not found.`);
+        }
+        this.send(route, 'BROADCAST', data);
     }
     async handleIncommingMessage(connection, message) {
         if (message.TYPE === 'TRACE_PROBE') {
@@ -105,6 +126,10 @@ class BroadcastService extends events_1.EventEmitter {
         }
         else if (message.TYPE === 'BROADCAST') {
             this.emit(exports.BROADCAST_EVENTS.MESSAGE, message.DATA);
+        }
+        else if (message.TYPE === 'REGISTER_NODE') {
+            this.nodeNames[message.DATA.NODE_ID] = message.DATA.NAME;
+            this.emit(exports.BROADCAST_EVENTS.NODE_IDENTIFICATION);
         }
     }
     async sendWithResult(targetRoute, type, data) {
@@ -168,6 +193,14 @@ class BroadcastService extends events_1.EventEmitter {
                 else {
                     this.routes.push(newRoute);
                 }
+            }
+        }
+        if (this.configuration.nodeName) {
+            for (const route of this.routes) {
+                this.send(route, 'REGISTER_NODE', {
+                    NODE_ID: this.id,
+                    NAME: this.configuration.nodeName,
+                });
             }
         }
     }

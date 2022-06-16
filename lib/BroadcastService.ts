@@ -6,10 +6,13 @@ import { Connection } from './network/Connection'
 import { EventEmitter } from 'events'
 
 export const BROADCAST_EVENTS = {
-  MESSAGE: 'MESSAGE'
+  MESSAGE: 'MESSAGE',
+  NETWORK_CHANGE: 'NETWORK_CHANGE',
+  NODE_IDENTIFICATION: 'NODE_IDENTIFICATION',
 }
 
 export interface BroadcastServiceConfiguration {
+  nodeName?: string
   nodesUrls: string[]
   maxConnectionAttemps: number
   serverPort: number
@@ -30,6 +33,7 @@ export class BroadcastService extends EventEmitter {
   protected server: NetServer
   protected client: NetClient
   protected routes: string[][] = []
+  protected nodeNames: {[id: string]: string} = {}
 
   public readonly id: string = randomHash()
 
@@ -99,8 +103,18 @@ export class BroadcastService extends EventEmitter {
   /**
    * Get list of nodes
    */
-  public async getNodesList(): Promise<string[]> {
+  public getNodesList(): string[] {
     return this.routes.map(r => r[r.length - 1])
+  }
+
+  /**
+   * Get names list
+   */
+  public getNamedNodes(): {[id: string]: string} {
+    return Object.keys(this.nodeNames).reduce((acc, id) => ({
+      ...acc,
+      [this.nodeNames[id]]: [...(acc[this.nodeNames[id]] || []), id]
+    }),{})
   }
 
   /**
@@ -110,6 +124,22 @@ export class BroadcastService extends EventEmitter {
     for(const route of this.routes) {
       this.send(route, 'BROADCAST', data)
     }
+  }
+
+  /**
+   * Send message to some node
+   */
+  public broadcastToNode(identificator: string, data: any) {
+    const knownNamesIds = Object.keys(this.nodeNames)
+    const foundInNameId = knownNamesIds.find(id => this.nodeNames[id] === identificator)
+    const lookupId = foundInNameId || identificator
+    const route = this.routes.find(r => r[r.length - 1] === lookupId)
+
+    if (!route) {
+      throw new Error(`Route to target ${identificator} not found.`)
+    }
+
+    this.send(route, 'BROADCAST', data)
   }
 
   /************************************
@@ -123,6 +153,7 @@ export class BroadcastService extends EventEmitter {
    */
   protected handleNodesConnectionsChange = async (connection: Connection) => {
     this.updateNodesList()
+    this.emit(BROADCAST_EVENTS.NETWORK_CHANGE)
   }
 
   /**
@@ -170,6 +201,9 @@ export class BroadcastService extends EventEmitter {
       })
     } else if (message.TYPE === 'BROADCAST') {
       this.emit(BROADCAST_EVENTS.MESSAGE, message.DATA)
+    } else if (message.TYPE === 'REGISTER_NODE') {
+      this.nodeNames[message.DATA.NODE_ID] = message.DATA.NAME
+      this.emit(BROADCAST_EVENTS.NODE_IDENTIFICATION)
     }
   }
 
@@ -266,6 +300,15 @@ export class BroadcastService extends EventEmitter {
           // new route
           this.routes.push(newRoute)
         }
+      }
+    }
+
+    if (this.configuration.nodeName) {
+      for(const route of this.routes) {
+        this.send(route, 'REGISTER_NODE', {
+          NODE_ID: this.id,
+          NAME: this.configuration.nodeName,
+        })
       }
     }
   }

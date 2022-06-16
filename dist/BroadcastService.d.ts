@@ -5,8 +5,11 @@ import { Connection } from './network/Connection';
 import { EventEmitter } from 'events';
 export declare const BROADCAST_EVENTS: {
     MESSAGE: string;
+    NETWORK_CHANGE: string;
+    NODE_IDENTIFICATION: string;
 };
 export interface BroadcastServiceConfiguration {
+    nodeName?: string;
     nodesUrls: string[];
     maxConnectionAttemps: number;
     serverPort: number;
@@ -19,13 +22,20 @@ export declare class BroadcastService extends EventEmitter {
     protected server: NetServer;
     protected client: NetClient;
     protected routes: string[][];
+    protected nodeNames: {
+        [id: string]: string;
+    };
     readonly id: string;
     constructor(configuration: Partial<BroadcastServiceConfiguration>);
     getConfiguration(): BroadcastServiceConfiguration;
     initialize(): Promise<void>;
     getConnections(): Connection[];
-    getNodesList(): Promise<string[]>;
+    getNodesList(): string[];
+    getNamedNodes(): {
+        [id: string]: string;
+    };
     broadcast(data: any): void;
+    broadcastToNode(identificator: string, data: any): void;
     protected handleNodesConnectionsChange: (connection: Connection) => Promise<void>;
     protected handleRoutingIncommingMessage: (connection: Connection, message: any) => Promise<void>;
     protected handleIncommingMessage(connection: Connection, message: any): Promise<void>;
