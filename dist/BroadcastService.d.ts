@@ -19,7 +19,7 @@ export declare class BroadcastService extends EventEmitter {
     protected server: NetServer;
     protected client: NetClient;
     protected routes: string[][];
-    protected id: any;
+    readonly id: string;
     constructor(configuration: Partial<BroadcastServiceConfiguration>);
     getConfiguration(): BroadcastServiceConfiguration;
     initialize(): Promise<void>;

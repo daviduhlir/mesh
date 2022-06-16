@@ -31,7 +31,7 @@ export class BroadcastService extends EventEmitter {
   protected client: NetClient
   protected routes: string[][] = []
 
-  protected id//readonly id: string = randomHash()
+  public readonly id: string = randomHash()
 
   constructor(configuration: Partial<BroadcastServiceConfiguration>) {
     super()
@@ -41,7 +41,7 @@ export class BroadcastService extends EventEmitter {
       ...configuration,
     }
 
-    this.id = this.configuration.serverPort
+    // TODO this is only for testing - this.id = this.configuration.serverPort
 
     this.server = new NetServer(this.id, {
       port: this.configuration.serverPort,

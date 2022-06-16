@@ -20,6 +20,7 @@ class BroadcastService extends events_1.EventEmitter {
     constructor(configuration) {
         super();
         this.routes = [];
+        this.id = utils_1.randomHash();
         this.handleNodesConnectionsChange = async (connection) => {
             this.updateNodesList();
         };
@@ -56,7 +57,6 @@ class BroadcastService extends events_1.EventEmitter {
             ...exports.defaultConfiguration,
             ...configuration,
         };
-        this.id = this.configuration.serverPort;
         this.server = new NetServer_1.NetServer(this.id, {
             port: this.configuration.serverPort,
             host: this.configuration.serverHost,
