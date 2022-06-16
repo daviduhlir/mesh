@@ -154,8 +154,7 @@ export class NetClient extends EventEmitter {
    * Connection was closed
    */
   protected handleOnConnectionClose = (connection: Connection) => {
-    // TODO connection closed... it's finished
-    this.close()
+    this.resetConnection()
   }
 
   /**
