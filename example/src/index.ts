@@ -38,23 +38,23 @@ const s = [
   }),*/
 
   new BroadcastService({
-    nodesUrls: [ 'ws://127.0.0.1:5001/'],
-    serverPort: 5000,
+    nodesUrls: [ 'ws://127.0.0.1:3001/'],
+    serverPort: 3000,
     nodeName: 'Server1',
   }),
   new BroadcastService({
-    nodesUrls: ['ws://127.0.0.1:5002/'],
-    serverPort: 5001,
+    nodesUrls: ['ws://127.0.0.1:3002/'],
+    serverPort: 3001,
     nodeName: 'Server2',
   }),
   new BroadcastService({
-    nodesUrls: ['ws://127.0.0.1:5003/'],
-    serverPort: 5002,
+    nodesUrls: ['ws://127.0.0.1:3003/'],
+    serverPort: 3002,
     nodeName: 'Server3',
   }),
   new BroadcastService({
-    nodesUrls: ['ws://127.0.0.1:5000/'],
-    serverPort: 5003,
+    nodesUrls: ['ws://127.0.0.1:3000/'],
+    serverPort: 3003,
     nodeName: 'Server4',
   }),
 ]

@@ -95,7 +95,6 @@ class BroadcastService extends events_1.EventEmitter {
         return this.routes.map(r => r[r.length - 1]);
     }
     getNamedNodes() {
-        console.log(this.nodeNames);
         return Object.keys(this.nodeNames).reduce((acc, id) => ({
             ...acc,
             [this.nodeNames[id]]: [...(acc[this.nodeNames[id]] || []), id]
