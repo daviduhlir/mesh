@@ -1,8 +1,8 @@
-import { BroadcastServer } from './BroadcastServer'
-import { BroadcastClient } from './BroadcastClient'
-import { CONNECTION_EVENTS } from './constants'
-import { randomHash } from './utils'
-import { Connection } from './Connection'
+import { NetServer } from './network/NetServer'
+import { NetClient } from './network/NetClient'
+import { CONNECTION_EVENTS } from './utils/constants'
+import { randomHash } from './utils/utils'
+import { Connection } from './network/Connection'
 import { EventEmitter } from 'events'
 
 export const BROADCAST_EVENTS = {
@@ -27,8 +27,8 @@ export const defaultConfiguration: BroadcastServiceConfiguration = {
 
 export class BroadcastService extends EventEmitter {
   protected configuration: BroadcastServiceConfiguration
-  protected server: BroadcastServer
-  protected client: BroadcastClient
+  protected server: NetServer
+  protected client: NetClient
   protected routes: string[][] = []
 
   protected id//readonly id: string = randomHash()
@@ -43,13 +43,13 @@ export class BroadcastService extends EventEmitter {
 
     this.id = this.configuration.serverPort
 
-    this.server = new BroadcastServer(this.id, {
+    this.server = new NetServer(this.id, {
       port: this.configuration.serverPort,
       host: this.configuration.serverHost,
       allowOrigin: this.configuration.serverAllowOrigin,
     })
 
-    this.client = new BroadcastClient(this.id, {
+    this.client = new NetClient(this.id, {
       urls: this.configuration.nodesUrls,
       maxAttemps: this.configuration.maxConnectionAttemps,
     })
@@ -251,9 +251,11 @@ export class BroadcastService extends EventEmitter {
         continue
       }
 
+      // result is list of connected nodes to connection
       for(const next of result) {
         const newRoute = [...testingRoute, next]
 
+        // try to find route with same endings
         const foundSameTargetIndex = this.routes.findIndex(r => r[r.length - 1] === next)
         if (foundSameTargetIndex !== -1) {
           // optimization - apply shorter way

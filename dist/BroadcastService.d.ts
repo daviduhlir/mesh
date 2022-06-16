@@ -1,6 +1,6 @@
 /// <reference types="node" />
-import { BroadcastServer } from './BroadcastServer';
-import { BroadcastClient } from './BroadcastClient';
+import { NetServer } from './NetServer';
+import { NetClient } from './NetClient';
 import { Connection } from './Connection';
 import { EventEmitter } from 'events';
 export declare const BROADCAST_EVENTS: {
@@ -16,8 +16,8 @@ export interface BroadcastServiceConfiguration {
 export declare const defaultConfiguration: BroadcastServiceConfiguration;
 export declare class BroadcastService extends EventEmitter {
     protected configuration: BroadcastServiceConfiguration;
-    protected server: BroadcastServer;
-    protected client: BroadcastClient;
+    protected server: NetServer;
+    protected client: NetClient;
     protected routes: string[][];
     protected id: any;
     constructor(configuration: Partial<BroadcastServiceConfiguration>);

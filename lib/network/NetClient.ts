@@ -1,6 +1,6 @@
 import { client as WebSocketClient, connection as WebSocketConnection } from 'websocket'
 import { EventEmitter } from 'events'
-import { CONNECTION_EVENTS } from './constants'
+import { CONNECTION_EVENTS } from '../utils/constants'
 import { Connection } from './Connection'
 
 export interface ClientConfiguration {
@@ -13,7 +13,7 @@ export const defaultConfiguration: ClientConfiguration = {
   maxAttemps: 3,
 }
 
-export class BroadcastClient extends EventEmitter {
+export class NetClient extends EventEmitter {
   protected wsClient: WebSocketClient
   protected configuration: ClientConfiguration
   protected currentConnection: Connection

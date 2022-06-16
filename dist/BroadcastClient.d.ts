@@ -7,7 +7,7 @@ export interface ClientConfiguration {
     maxAttemps: number;
 }
 export declare const defaultConfiguration: ClientConfiguration;
-export declare class BroadcastClient extends EventEmitter {
+export declare class NetClient extends EventEmitter {
     readonly id: any;
     protected wsClient: WebSocketClient;
     protected configuration: ClientConfiguration;

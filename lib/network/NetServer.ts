@@ -1,7 +1,7 @@
 import { server as WebSocketServer, request as WebSocketRequest } from 'websocket'
 import * as http from 'http'
 import { EventEmitter } from 'events'
-import { CONNECTION_EVENTS } from './constants'
+import { CONNECTION_EVENTS } from '../utils/constants'
 import { Connection } from './Connection'
 
 export interface ServerConfiguration {
@@ -16,7 +16,7 @@ export const defaultConfiguration: ServerConfiguration = {
   allowOrigin: (origin) => true
 }
 
-export class BroadcastServer extends EventEmitter {
+export class NetServer extends EventEmitter {
   protected httpServer: http.Server
   protected wsServer: WebSocketServer
   protected configuration: ServerConfiguration

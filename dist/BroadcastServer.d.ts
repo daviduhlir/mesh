@@ -9,7 +9,7 @@ export interface ServerConfiguration {
     allowOrigin: (origin: string) => boolean;
 }
 export declare const defaultConfiguration: ServerConfiguration;
-export declare class BroadcastServer extends EventEmitter {
+export declare class NetServer extends EventEmitter {
     readonly id: any;
     protected httpServer: http.Server;
     protected wsServer: WebSocketServer;
