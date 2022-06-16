@@ -59,6 +59,13 @@ const s = [
   }),
 
   /*new BroadcastService({
+    nodesUrls: [],
+    serverPort: 6000,
+    serverHost: '0.0.0.0',
+    nodeName: 'Server4',
+  }),*/
+
+  /*new BroadcastService({
     nodesUrls: [ 'wss://public.daviduhlir.cz/'],
     serverPort: 5000,
     nodeName: 'Server1',
@@ -78,7 +85,7 @@ s.forEach(c => {
   })
 }, 1000)*/
 
-/*function test(i: number) {
+function test(i: number) {
   setTimeout(async () => {
     console.log('Broadcast')
     s[i].broadcast({
@@ -89,13 +96,13 @@ s.forEach(c => {
 
 s.forEach((c, index) => {
   test(index)
-})*/
+})
 
-s.forEach(c => {
+/*s.forEach(c => {
   c.on(BROADCAST_EVENTS.NETWORK_CHANGE, () => {
     console.log('Network change')
     s[0].broadcast({
       SOMETHING: 'Hello world'
     })
   })
-})
+})*/
