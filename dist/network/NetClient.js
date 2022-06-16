@@ -1,15 +1,15 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.BroadcastClient = exports.defaultConfiguration = void 0;
+exports.NetClient = exports.defaultConfiguration = void 0;
 const websocket_1 = require("websocket");
 const events_1 = require("events");
-const constants_1 = require("./constants");
+const constants_1 = require("../utils/constants");
 const Connection_1 = require("./Connection");
 exports.defaultConfiguration = {
     urls: [],
     maxAttemps: 3,
 };
-class BroadcastClient extends events_1.EventEmitter {
+class NetClient extends events_1.EventEmitter {
     constructor(id, configuration) {
         super();
         this.id = id;
@@ -110,5 +110,5 @@ class BroadcastClient extends events_1.EventEmitter {
         return this.currentConnection;
     }
 }
-exports.BroadcastClient = BroadcastClient;
-//# sourceMappingURL=BroadcastClient.js.map
+exports.NetClient = NetClient;
+//# sourceMappingURL=NetClient.js.map

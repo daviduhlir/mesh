@@ -1,10 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BroadcastService = exports.defaultConfiguration = exports.BROADCAST_EVENTS = void 0;
-const BroadcastServer_1 = require("./BroadcastServer");
-const BroadcastClient_1 = require("./BroadcastClient");
-const constants_1 = require("./constants");
-const utils_1 = require("./utils");
+const NetServer_1 = require("./network/NetServer");
+const NetClient_1 = require("./network/NetClient");
+const constants_1 = require("./utils/constants");
+const utils_1 = require("./utils/utils");
 const events_1 = require("events");
 exports.BROADCAST_EVENTS = {
     MESSAGE: 'MESSAGE'
@@ -57,12 +57,12 @@ class BroadcastService extends events_1.EventEmitter {
             ...configuration,
         };
         this.id = this.configuration.serverPort;
-        this.server = new BroadcastServer_1.BroadcastServer(this.id, {
+        this.server = new NetServer_1.NetServer(this.id, {
             port: this.configuration.serverPort,
             host: this.configuration.serverHost,
             allowOrigin: this.configuration.serverAllowOrigin,
         });
-        this.client = new BroadcastClient_1.BroadcastClient(this.id, {
+        this.client = new NetClient_1.NetClient(this.id, {
             urls: this.configuration.nodesUrls,
             maxAttemps: this.configuration.maxConnectionAttemps,
         });

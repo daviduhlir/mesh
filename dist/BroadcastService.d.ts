@@ -1,7 +1,7 @@
 /// <reference types="node" />
-import { NetServer } from './NetServer';
-import { NetClient } from './NetClient';
-import { Connection } from './Connection';
+import { NetServer } from './network/NetServer';
+import { NetClient } from './network/NetClient';
+import { Connection } from './network/Connection';
 import { EventEmitter } from 'events';
 export declare const BROADCAST_EVENTS: {
     MESSAGE: string;

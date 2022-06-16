@@ -1,17 +1,17 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.BroadcastServer = exports.defaultConfiguration = void 0;
+exports.NetServer = exports.defaultConfiguration = void 0;
 const websocket_1 = require("websocket");
 const http = require("http");
 const events_1 = require("events");
-const constants_1 = require("./constants");
+const constants_1 = require("../utils/constants");
 const Connection_1 = require("./Connection");
 exports.defaultConfiguration = {
     port: 8080,
     host: '127.0.0.1',
     allowOrigin: (origin) => true
 };
-class BroadcastServer extends events_1.EventEmitter {
+class NetServer extends events_1.EventEmitter {
     constructor(id, configuration) {
         super();
         this.id = id;
@@ -78,5 +78,5 @@ class BroadcastServer extends events_1.EventEmitter {
         this.wsServer.on('request', this.handleIncommingConnection);
     }
 }
-exports.BroadcastServer = BroadcastServer;
-//# sourceMappingURL=BroadcastServer.js.map
+exports.NetServer = NetServer;
+//# sourceMappingURL=NetServer.js.map
