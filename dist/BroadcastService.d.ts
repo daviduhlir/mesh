@@ -8,6 +8,15 @@ export declare const BROADCAST_EVENTS: {
     NETWORK_CHANGE: string;
     NODE_IDENTIFICATION: string;
 };
+export declare const MESSAGE_TYPE: {
+    BROADCAST: string;
+    TRACE_PROBE: string;
+    REGISTER_NODE: string;
+};
+export interface BroadcastMessageMeta {
+    SENDER: string;
+    sendBack: (data: any) => void;
+}
 export interface BroadcastServiceConfiguration {
     nodeName?: string;
     nodesUrls: string[];
@@ -35,7 +44,7 @@ export declare class BroadcastService extends EventEmitter {
         [id: string]: string;
     };
     broadcast(data: any): void;
-    broadcastToNode(identificator: string, data: any): void;
+    sendToNode(identificator: string, data: any): void;
     protected handleNodesConnectionsChange: (connection: Connection) => Promise<void>;
     protected handleRoutingIncommingMessage: (connection: Connection, message: any) => Promise<void>;
     protected handleIncommingMessage(connection: Connection, message: any): Promise<void>;

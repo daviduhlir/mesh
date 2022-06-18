@@ -1,42 +1,7 @@
 import { BroadcastService, BROADCAST_EVENTS } from '@david.uhlir/mesh'
 
+// create network on one server -> it's posible when you are using different ports
 const s = [
-  /*new BroadcastService({
-    nodesUrls: [ 'ws://127.0.0.1:5001/'],
-    serverPort: 5000,
-  }),
-  new BroadcastService({
-    nodesUrls: ['ws://127.0.0.1:5021/'],
-    serverPort: 5001,
-  }),
-
-  new BroadcastService({
-    nodesUrls: ['ws://127.0.0.1:5001/'],
-    serverPort: 5010,
-  }),
-  new BroadcastService({
-    nodesUrls: ['ws://127.0.0.1:5001/'],
-    serverPort: 5011,
-  }),
-
-  new BroadcastService({
-    nodesUrls: ['ws://127.0.0.1:5000/'],
-    serverPort: 5012,
-  }),
-  new BroadcastService({
-    nodesUrls: ['ws://127.0.0.1:5000/'],
-    serverPort: 5013,
-  }),
-
-  new BroadcastService({
-    nodesUrls: ['ws://127.0.0.1:5013/'],
-    serverPort: 5020,
-  }),
-  new BroadcastService({
-    nodesUrls: ['ws://127.0.0.1:5020/'],
-    serverPort: 5021,
-  }),*/
-
   new BroadcastService({
     nodesUrls: [ 'ws://127.0.0.1:3001/'],
     serverPort: 3000,
@@ -57,27 +22,15 @@ const s = [
     serverPort: 3003,
     nodeName: 'Server4',
   }),
-
-  /*new BroadcastService({
-    nodesUrls: [ 'wss://public.daviduhlir.cz/'],
-    serverPort: 5000,
-    nodeName: 'Server1',
-  }),*/
 ]
 
+// initialize and attach message event
 s.forEach(c => {
-  c.on(BROADCAST_EVENTS.MESSAGE, (message) => console.log('RECEIVED', c.getConfiguration().serverPort, message))
+  c.on(BROADCAST_EVENTS.MESSAGE, (message) => console.log('RECEIVED on port:', c.getConfiguration().serverPort, message))
   c.initialize()
 })
 
-/*setTimeout(async () => {
-  console.log('Node names')
-  console.log(s[0].getNamedNodes())
-  s[0].broadcastToNode('Server4', {
-    SOMETHING: 'Hello world'
-  })
-}, 1000)*/
-
+// start broadcasting messages as example
 function test(i: number) {
   setTimeout(async () => {
     console.log('Broadcast')
@@ -90,12 +43,3 @@ function test(i: number) {
 s.forEach((c, index) => {
   test(index)
 })
-
-/*s.forEach(c => {
-  c.on(BROADCAST_EVENTS.NETWORK_CHANGE, () => {
-    console.log('Network change')
-    s[0].broadcast({
-      SOMETHING: 'Hello world'
-    })
-  })
-})*/

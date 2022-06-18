@@ -15,7 +15,8 @@
   "keywords": [
     "websocket",
     "server",
-    "node"
+    "node",
+    "broadcast"
   ],
   "author": "David Uhlíř",
   "license": "ISC",

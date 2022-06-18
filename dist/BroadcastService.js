@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.BroadcastService = exports.defaultConfiguration = exports.BROADCAST_EVENTS = void 0;
+exports.BroadcastService = exports.defaultConfiguration = exports.MESSAGE_TYPE = exports.BROADCAST_EVENTS = void 0;
 const NetServer_1 = require("./network/NetServer");
 const NetClient_1 = require("./network/NetClient");
 const constants_1 = require("./utils/constants");
@@ -10,6 +10,11 @@ exports.BROADCAST_EVENTS = {
     MESSAGE: 'MESSAGE',
     NETWORK_CHANGE: 'NETWORK_CHANGE',
     NODE_IDENTIFICATION: 'NODE_IDENTIFICATION',
+};
+exports.MESSAGE_TYPE = {
+    BROADCAST: 'BROADCAST',
+    TRACE_PROBE: 'TRACE_PROBE',
+    REGISTER_NODE: 'REGISTER_NODE',
 };
 exports.defaultConfiguration = {
     nodesUrls: ['ws://127.0.0.1:8080'],
@@ -26,7 +31,7 @@ class BroadcastService extends events_1.EventEmitter {
         this.id = utils_1.randomHash();
         this.handleNodesConnectionsChange = async (connection) => {
             this.updateNodesList();
-            this.emit(exports.BROADCAST_EVENTS.NETWORK_CHANGE);
+            this.emit(exports.BROADCAST_EVENTS.NETWORK_CHANGE, connection);
         };
         this.handleRoutingIncommingMessage = async (connection, message) => {
             if (message.ROUTE?.length) {
@@ -102,10 +107,10 @@ class BroadcastService extends events_1.EventEmitter {
     }
     broadcast(data) {
         for (const route of this.routes) {
-            this.send(route, 'BROADCAST', data);
+            this.send(route, exports.MESSAGE_TYPE.BROADCAST, data);
         }
     }
-    broadcastToNode(identificator, data) {
+    sendToNode(identificator, data) {
         const knownNamesIds = Object.keys(this.nodeNames);
         const foundInNameId = knownNamesIds.find(id => this.nodeNames[id] === identificator);
         const lookupId = foundInNameId || identificator;
@@ -113,20 +118,23 @@ class BroadcastService extends events_1.EventEmitter {
         if (!route) {
             throw new Error(`Route to target ${identificator} not found.`);
         }
-        this.send(route, 'BROADCAST', data);
+        this.send(route, exports.MESSAGE_TYPE.BROADCAST, data);
     }
     async handleIncommingMessage(connection, message) {
-        if (message.TYPE === 'TRACE_PROBE') {
+        if (message.TYPE === exports.MESSAGE_TYPE.TRACE_PROBE) {
             connection.send({
                 MESSAGE_ID: message.MESSAGE_ID,
                 MESSAGE_RETURN: true,
                 RESULT: this.getConnections().filter(c => c.id !== connection.id).map(c => c.id),
             });
         }
-        else if (message.TYPE === 'BROADCAST') {
-            this.emit(exports.BROADCAST_EVENTS.MESSAGE, message.DATA);
+        else if (message.TYPE === exports.MESSAGE_TYPE.BROADCAST) {
+            this.emit(exports.BROADCAST_EVENTS.MESSAGE, message.DATA, {
+                SENDER: message.SENDER,
+                sendBack: (data) => this.sendToNode(message.SENDER, data),
+            });
         }
-        else if (message.TYPE === 'REGISTER_NODE') {
+        else if (message.TYPE === exports.MESSAGE_TYPE.REGISTER_NODE) {
             this.nodeNames[message.DATA.NODE_ID] = message.DATA.NAME;
             this.emit(exports.BROADCAST_EVENTS.NODE_IDENTIFICATION);
         }
@@ -165,6 +173,7 @@ class BroadcastService extends events_1.EventEmitter {
         connection.send({
             MESSAGE_ID: messageId,
             TYPE: type,
+            SENDER: this.id,
             ROUTE: route,
             DATA: data,
         });
@@ -175,7 +184,7 @@ class BroadcastService extends events_1.EventEmitter {
             const testingRoute = this.routes[i];
             let result;
             try {
-                result = await this.sendWithResult(testingRoute, 'TRACE_PROBE', {});
+                result = await this.sendWithResult(testingRoute, exports.MESSAGE_TYPE.TRACE_PROBE, {});
             }
             catch (e) { }
             if (!result) {
@@ -196,7 +205,7 @@ class BroadcastService extends events_1.EventEmitter {
         }
         if (this.configuration.nodeName) {
             for (const route of this.routes) {
-                this.send(route, 'REGISTER_NODE', {
+                this.send(route, exports.MESSAGE_TYPE.REGISTER_NODE, {
                     NODE_ID: this.id,
                     NAME: this.configuration.nodeName,
                 });
