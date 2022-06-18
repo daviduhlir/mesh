@@ -37,7 +37,7 @@ const s = [
     serverPort: 5021,
   }),*/
 
-  new BroadcastService({
+  /*new BroadcastService({
     nodesUrls: [ 'ws://127.0.0.1:3001/'],
     serverPort: 3000,
     nodeName: 'Server1',
@@ -56,13 +56,13 @@ const s = [
     nodesUrls: ['ws://127.0.0.1:3000/'],
     serverPort: 3003,
     nodeName: 'Server4',
-  }),
+  }),*/
 
-  /*new BroadcastService({
+  new BroadcastService({
     nodesUrls: [ 'wss://public.daviduhlir.cz/'],
     serverPort: 5000,
     nodeName: 'Server1',
-  }),*/
+  }),
 ]
 
 s.forEach(c => {

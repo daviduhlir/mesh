@@ -11,6 +11,17 @@ export const BROADCAST_EVENTS = {
   NODE_IDENTIFICATION: 'NODE_IDENTIFICATION',
 }
 
+export const MESSAGE_TYPE = {
+  BROADCAST: 'BROADCAST',
+  TRACE_PROBE: 'TRACE_PROBE',
+  REGISTER_NODE: 'REGISTER_NODE',
+}
+
+export interface BroadcastMessageMeta {
+  SENDER: string,
+  sendBack: (data: any) => void
+}
+
 export interface BroadcastServiceConfiguration {
   nodeName?: string
   nodesUrls: string[]
@@ -122,14 +133,14 @@ export class BroadcastService extends EventEmitter {
    */
   public broadcast(data: any) {
     for(const route of this.routes) {
-      this.send(route, 'BROADCAST', data)
+      this.send(route, MESSAGE_TYPE.BROADCAST, data)
     }
   }
 
   /**
    * Send message to some node
    */
-  public broadcastToNode(identificator: string, data: any) {
+  public sendToNode(identificator: string, data: any) {
     const knownNamesIds = Object.keys(this.nodeNames)
     const foundInNameId = knownNamesIds.find(id => this.nodeNames[id] === identificator)
     const lookupId = foundInNameId || identificator
@@ -139,7 +150,7 @@ export class BroadcastService extends EventEmitter {
       throw new Error(`Route to target ${identificator} not found.`)
     }
 
-    this.send(route, 'BROADCAST', data)
+    this.send(route, MESSAGE_TYPE.BROADCAST, data)
   }
 
   /************************************
@@ -153,7 +164,7 @@ export class BroadcastService extends EventEmitter {
    */
   protected handleNodesConnectionsChange = async (connection: Connection) => {
     this.updateNodesList()
-    this.emit(BROADCAST_EVENTS.NETWORK_CHANGE)
+    this.emit(BROADCAST_EVENTS.NETWORK_CHANGE, connection)
   }
 
   /**
@@ -193,17 +204,26 @@ export class BroadcastService extends EventEmitter {
    */
   protected async handleIncommingMessage(connection: Connection, message: any) {
     // final message habdling
-    if (message.TYPE === 'TRACE_PROBE') {
+    if (message.TYPE === MESSAGE_TYPE.TRACE_PROBE) {
+
       connection.send({
         MESSAGE_ID: message.MESSAGE_ID,
         MESSAGE_RETURN: true,
         RESULT: this.getConnections().filter(c => c.id !== connection.id).map(c => c.id),
       })
-    } else if (message.TYPE === 'BROADCAST') {
-      this.emit(BROADCAST_EVENTS.MESSAGE, message.DATA)
-    } else if (message.TYPE === 'REGISTER_NODE') {
+
+    } else if (message.TYPE === MESSAGE_TYPE.BROADCAST) {
+
+      this.emit(BROADCAST_EVENTS.MESSAGE, message.DATA, {
+        SENDER: message.SENDER,
+        sendBack: (data) => this.sendToNode(message.SENDER, data),
+      })
+
+    } else if (message.TYPE === MESSAGE_TYPE.REGISTER_NODE) {
+
       this.nodeNames[message.DATA.NODE_ID] = message.DATA.NAME
       this.emit(BROADCAST_EVENTS.NODE_IDENTIFICATION)
+
     }
   }
 
@@ -257,6 +277,7 @@ export class BroadcastService extends EventEmitter {
     connection.send({
       MESSAGE_ID: messageId,
       TYPE: type,
+      SENDER: this.id,
       ROUTE: route,
       DATA: data,
     })
@@ -278,7 +299,7 @@ export class BroadcastService extends EventEmitter {
       const testingRoute = this.routes[i]
       let result
       try {
-        result = await this.sendWithResult(testingRoute, 'TRACE_PROBE', {})
+        result = await this.sendWithResult(testingRoute, MESSAGE_TYPE.TRACE_PROBE, {})
       } catch(e) {}
 
       if (!result) {
@@ -305,7 +326,7 @@ export class BroadcastService extends EventEmitter {
 
     if (this.configuration.nodeName) {
       for(const route of this.routes) {
-        this.send(route, 'REGISTER_NODE', {
+        this.send(route, MESSAGE_TYPE.REGISTER_NODE, {
           NODE_ID: this.id,
           NAME: this.configuration.nodeName,
         })
