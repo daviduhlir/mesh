@@ -18,11 +18,9 @@ class NetClient extends events_1.EventEmitter {
             urlIndex: 0,
         };
         this.handleOnConnectionError = (connection, message) => {
-            console.log('error');
             this.resetConnection();
         };
         this.handleOnConnectionClose = (connection) => {
-            console.log('Close');
             this.resetConnection();
         };
         this.handleOnMessage = (connection, message) => {

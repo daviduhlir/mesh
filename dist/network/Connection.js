@@ -29,9 +29,6 @@ class Connection extends events_1.EventEmitter {
     get id() {
         return this.internalId;
     }
-    handshake(id) {
-        this.internalId = id;
-    }
     get connected() {
         return this.connection?.connected;
     }
@@ -43,6 +40,9 @@ class Connection extends events_1.EventEmitter {
         if (this.connection.connected) {
             this.connection.sendUTF(JSON.stringify(data));
         }
+    }
+    handshake(id) {
+        this.internalId = id;
     }
 }
 exports.Connection = Connection;
