@@ -4,6 +4,7 @@ import { CONNECTION_EVENTS } from './utils/constants'
 import { randomHash } from './utils/utils'
 import { Connection } from './network/Connection'
 import { EventEmitter } from 'events'
+import cluster from './utils/clutser'
 
 export const BROADCAST_EVENTS = {
   MESSAGE: 'MESSAGE',
@@ -15,6 +16,13 @@ export const MESSAGE_TYPE = {
   BROADCAST: 'BROADCAST',
   TRACE_PROBE: 'TRACE_PROBE',
   REGISTER_NODE: 'REGISTER_NODE',
+}
+
+const IPC_MESSAGE_ACTIONS = {
+  GET_NODES_LIST: 'GET_NODES_LIST',
+  GET_NODES_NAMES: 'GET_NODES_NAMES',
+  SEND_TO_NODE: 'SEND_TO_NODE',
+  BROADCAST: 'BROADCAST',
 }
 
 export interface BroadcastMessageMeta {
@@ -58,16 +66,32 @@ export class BroadcastService extends EventEmitter {
 
     // TODO this is only for testing - this.id = this.configuration.serverPort
 
-    this.server = new NetServer(this.id, {
-      port: this.configuration.serverPort,
-      host: this.configuration.serverHost,
-      allowOrigin: this.configuration.serverAllowOrigin,
-    })
+    if (cluster.isMaster) {
+      this.server = new NetServer(this.id, {
+        port: this.configuration.serverPort,
+        host: this.configuration.serverHost,
+        allowOrigin: this.configuration.serverAllowOrigin,
+      })
 
-    this.client = new NetClient(this.id, {
-      urls: this.configuration.nodesUrls,
-      maxAttemps: this.configuration.maxConnectionAttemps,
-    })
+      this.client = new NetClient(this.id, {
+        urls: this.configuration.nodesUrls,
+        maxAttemps: this.configuration.maxConnectionAttemps,
+      })
+
+      cluster?.on('fork', worker => worker.on('message', this.reattachIpcMessageHandlers))
+      cluster?.on('exit', _ => this.reattachIpcMessageHandlers())
+    } else {
+      /**
+       *
+       * TODO!!!!!
+       *
+       * This should be separated by master and cluster worker.
+       * If you create this class in worker, it should communicate by IPC to have
+       * same behaviour!
+       *
+       */
+      process.on('message', this.workerIncomingIpcMessage)
+    }
   }
 
   /**
@@ -81,18 +105,20 @@ export class BroadcastService extends EventEmitter {
    * Initialize connection
    */
   public async initialize() {
-    this.server.on(CONNECTION_EVENTS.MESSAGE, this.handleRoutingIncommingMessage)
-    this.client.on(CONNECTION_EVENTS.MESSAGE, this.handleRoutingIncommingMessage)
+    if (cluster.isMaster) {
+      this.server.on(CONNECTION_EVENTS.MESSAGE, this.handleRoutingIncommingMessage)
+      this.client.on(CONNECTION_EVENTS.MESSAGE, this.handleRoutingIncommingMessage)
 
-    this.server.on(CONNECTION_EVENTS.CLOSE, this.handleNodesConnectionsChange)
-    this.server.on(CONNECTION_EVENTS.OPEN, this.handleNodesConnectionsChange)
-    this.server.on(CONNECTION_EVENTS.HANDSHAKE_COMPLETE, this.handleNodesConnectionsChange)
-    this.client.on(CONNECTION_EVENTS.HANDSHAKE_COMPLETE, this.handleNodesConnectionsChange)
+      this.server.on(CONNECTION_EVENTS.CLOSE, this.handleNodesConnectionsChange)
+      this.server.on(CONNECTION_EVENTS.OPEN, this.handleNodesConnectionsChange)
+      this.server.on(CONNECTION_EVENTS.HANDSHAKE_COMPLETE, this.handleNodesConnectionsChange)
+      this.client.on(CONNECTION_EVENTS.HANDSHAKE_COMPLETE, this.handleNodesConnectionsChange)
 
-    await this.server.initialize()
-    await this.client.initialize()
+      await this.server.initialize()
+      await this.client.initialize()
 
-    this.updateNodesList()
+      this.updateNodesList()
+    }
   }
 
   /************************************
@@ -102,55 +128,61 @@ export class BroadcastService extends EventEmitter {
    ************************************/
 
   /**
-   * get all connections
-   */
-  public getConnections(): Connection[] {
-    return this.server.getConnections()
-      .concat([this.client.getConnection()])
-      .filter(Boolean)
-      .filter((value, index, self) => self.findIndex(i => i.id === value.id) === index)
-  }
-
-  /**
    * Get list of nodes
    */
-  public getNodesList(): string[] {
-    return this.routes.map(r => r[r.length - 1])
+  public async getNodesList(): Promise<string[]> {
+    if (cluster.isMaster) {
+      return this.routes.map(r => r[r.length - 1])
+    } else {
+      return this.sendIpcActionToMaster(IPC_MESSAGE_ACTIONS.GET_NODES_LIST)
+    }
   }
 
   /**
    * Get names list
    */
-  public getNamedNodes(): {[id: string]: string} {
-    return Object.keys(this.nodeNames).reduce((acc, id) => ({
-      ...acc,
-      [this.nodeNames[id]]: [...(acc[this.nodeNames[id]] || []), id]
-    }),{})
+  public async getNamedNodes(): Promise<{[id: string]: string}> {
+    if (cluster.isMaster) {
+      return Object.keys(this.nodeNames).reduce((acc, id) => ({
+        ...acc,
+        [this.nodeNames[id]]: [...(acc[this.nodeNames[id]] || []), id]
+      }),{})
+    } else {
+      return this.sendIpcActionToMaster(IPC_MESSAGE_ACTIONS.GET_NODES_NAMES)
+    }
   }
 
   /**
    * Broadcast message
    */
-  public broadcast(data: any) {
-    for(const route of this.routes) {
-      this.send(route, MESSAGE_TYPE.BROADCAST, data)
+  public async broadcast(data: any) {
+    if (cluster.isMaster) {
+      for(const route of this.routes) {
+        this.send(route, MESSAGE_TYPE.BROADCAST, data)
+      }
+    } else {
+      return this.sendIpcActionToMaster(IPC_MESSAGE_ACTIONS.BROADCAST, { data })
     }
   }
 
   /**
    * Send message to some node
    */
-  public sendToNode(identificator: string, data: any) {
-    const knownNamesIds = Object.keys(this.nodeNames)
-    const foundInNameId = knownNamesIds.find(id => this.nodeNames[id] === identificator)
-    const lookupId = foundInNameId || identificator
-    const route = this.routes.find(r => r[r.length - 1] === lookupId)
+  public async sendToNode(identificator: string, data: any) {
+    if (cluster.isMaster) {
+      const knownNamesIds = Object.keys(this.nodeNames)
+      const foundInNameId = knownNamesIds.find(id => this.nodeNames[id] === identificator)
+      const lookupId = foundInNameId || identificator
+      const route = this.routes.find(r => r[r.length - 1] === lookupId)
 
-    if (!route) {
-      throw new Error(`Route to target ${identificator} not found.`)
+      if (!route) {
+        throw new Error(`Route to target ${identificator} not found.`)
+      }
+
+      this.send(route, MESSAGE_TYPE.BROADCAST, data)
+    } else {
+      return this.sendIpcActionToMaster(IPC_MESSAGE_ACTIONS.SEND_TO_NODE, { identificator, data })
     }
-
-    this.send(route, MESSAGE_TYPE.BROADCAST, data)
   }
 
   /************************************
@@ -158,6 +190,16 @@ export class BroadcastService extends EventEmitter {
    * Handle messages and events
    *
    ************************************/
+
+  /**
+   * get all connections
+   */
+   public async getConnections(): Promise<Connection[]> {
+    return this.server.getConnections()
+      .concat([this.client.getConnection()])
+      .filter(Boolean)
+      .filter((value, index, self) => self.findIndex(i => i.id === value.id) === index)
+  }
 
   /**
    * On new connection or closed some
@@ -209,7 +251,7 @@ export class BroadcastService extends EventEmitter {
       connection.send({
         MESSAGE_ID: message.MESSAGE_ID,
         MESSAGE_RETURN: true,
-        RESULT: this.getConnections().filter(c => c.id !== connection.id).map(c => c.id),
+        RESULT: (await this.getConnections()).filter(c => c.id !== connection.id).map(c => c.id),
       })
 
     } else if (message.TYPE === MESSAGE_TYPE.BROADCAST) {
@@ -218,6 +260,8 @@ export class BroadcastService extends EventEmitter {
         SENDER: message.SENDER,
         sendBack: (data) => this.sendToNode(message.SENDER, data),
       })
+
+      this.sendIpcActionToWorkers(IPC_MESSAGE_ACTIONS.BROADCAST, message)
 
     } else if (message.TYPE === MESSAGE_TYPE.REGISTER_NODE) {
 
@@ -239,7 +283,7 @@ export class BroadcastService extends EventEmitter {
   protected async sendWithResult(targetRoute: string[], type: string, data: any) {
     const route = [...targetRoute]
     const firstRoute = route.shift()
-    const connection = this.getConnections().find(c => c.id === firstRoute)
+    const connection = (await this.getConnections()).find(c => c.id === firstRoute)
     if (!connection) {
       throw new Error(`Route to ${firstRoute} not found on node ${this.id}`)
     }
@@ -269,7 +313,7 @@ export class BroadcastService extends EventEmitter {
   protected async send(targetRoute: string[], type: string, data: any, messageId?: string) {
     const route = [...targetRoute]
     const firstRoute = route.shift()
-    const connection = this.getConnections().find(c => c.id === firstRoute)
+    const connection = (await this.getConnections()).find(c => c.id === firstRoute)
     if (!connection) {
       throw new Error(`Route to ${firstRoute} not found on node ${this.id}`)
     }
@@ -293,7 +337,7 @@ export class BroadcastService extends EventEmitter {
    * Update nodes list by listing in net
    */
   protected async updateNodesList() {
-    this.routes = this.getConnections().filter(c => !!c.id).map(c => [c.id])
+    this.routes = (await this.getConnections()).filter(c => !!c.id).map(c => [c.id])
 
     for(let i = 0; i < this.routes.length; i++) {
       const testingRoute = this.routes[i]
@@ -332,5 +376,109 @@ export class BroadcastService extends EventEmitter {
         })
       }
     }
+  }
+
+  /************************************
+   *
+   * IPC handlers
+   *
+   ************************************/
+  /**
+   * Reattach all message handlers if new fork or some exited
+   */
+  protected reattachIpcMessageHandlers() {
+    Object.keys(cluster.workers).forEach(workerId => {
+      cluster.workers?.[workerId]?.removeListener('message', this.masterIncomingIpcMessage)
+      cluster.workers?.[workerId]?.addListener('message', this.masterIncomingIpcMessage)
+    })
+  }
+
+  /**
+   * Handle master incomming message
+   * @param message
+   */
+  protected masterIncomingIpcMessage(message: any) {
+    if (message.MESH_INTERNAL_MASTER_ACTION) {
+      const sender = cluster.workers[message.WORKER]
+
+      // TODO connect actions
+      let results = null
+      if (message.MESH_INTERNAL_MASTER_ACTION === IPC_MESSAGE_ACTIONS.BROADCAST) {
+        results = await this.broadcast(message.params.data)
+      } else if (message.MESH_INTERNAL_MASTER_ACTION === IPC_MESSAGE_ACTIONS.GET_NODES_LIST) {
+        results = await this.getNodesList()
+      } else if (message.MESH_INTERNAL_MASTER_ACTION === IPC_MESSAGE_ACTIONS.GET_NODES_NAMES) {
+        results = await this.getNamedNodes()
+      } else if (message.MESH_INTERNAL_MASTER_ACTION === IPC_MESSAGE_ACTIONS.SEND_TO_NODE) {
+        results = await this.sendToNode(message.params.identificator, message.params.data)
+      } else {
+        throw new Error(`BRoadcast service IPC failed, action ${message.MESH_INTERNAL_MASTER_ACTION} was not found.`)
+      }
+
+      sender.send({
+        MESH_INTERNAL_MASTER_ACTION_RESULT: message.MESH_INTERNAL_MASTER_ACTION,
+        MESSAGE_ID: message.MESSAGE_ID,
+        results,
+      })
+    }
+
+    // TODO handle actions and return values
+  }
+
+  /**
+   * Handle master incomming message
+   * @param message
+   */
+  protected workerIncomingIpcMessage(message: any) {
+    if (message.MESH_INTERNAL_WORKER_ACTION === IPC_MESSAGE_ACTIONS.BROADCAST) {
+      this.emit(BROADCAST_EVENTS.MESSAGE, message.params.DATA, {
+        SENDER: message.params.SENDER,
+        sendBack: (data) => this.sendToNode(message.params.SENDER, data),
+      })
+    }
+  }
+
+  /**
+   * Send action to master and wait for results
+   */
+  protected async sendIpcActionToMaster<T>(action: string, params?: any): Promise<T> {
+    if (cluster.isWorker) {
+      return new Promise((resolve, reject) => {
+        const messageId = randomHash()
+
+        const messageHandler = message => {
+          if (
+            typeof message === 'object' &&
+            message.MESSAGE_ID === messageId,
+            message.message.MESH_INTERNAL_MASTER_ACTION_RESULT &&
+          ) {
+            process.removeListener('message', messageHandler)
+            resolve(message.results)
+          }
+        }
+        process.addListener('message', messageHandler)
+
+        process.send({
+          MESH_INTERNAL_MASTER_ACTION: action,
+          params,
+          MESSAGE_ID: messageId,
+          WORKER: cluster.worker?.id,
+        })
+      })
+    } else {
+      return Promise.reject('Cant send IPC from master')
+    }
+  }
+
+  /**
+   * Send action to workers
+   */
+  protected sendIpcActionToWorkers(action: string, params?: any) {
+    // TODO
+    const message = {
+      MESH_INTERNAL_WORKER_ACTION: action,
+      params,
+    }
+    Object.keys(cluster.workers).forEach(workerId => cluster.workers?.[workerId]?.send(message))
   }
 }
