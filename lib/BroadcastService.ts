@@ -397,7 +397,7 @@ export class BroadcastService extends EventEmitter {
    * Handle master incomming message
    * @param message
    */
-  protected masterIncomingIpcMessage(message: any) {
+  protected async masterIncomingIpcMessage(message: any) {
     if (message.MESH_INTERNAL_MASTER_ACTION) {
       const sender = cluster.workers[message.WORKER]
 
@@ -450,7 +450,7 @@ export class BroadcastService extends EventEmitter {
           if (
             typeof message === 'object' &&
             message.MESSAGE_ID === messageId,
-            message.message.MESH_INTERNAL_MASTER_ACTION_RESULT &&
+            message.message.MESH_INTERNAL_MASTER_ACTION_RESULT
           ) {
             process.removeListener('message', messageHandler)
             resolve(message.results)

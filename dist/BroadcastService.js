@@ -6,6 +6,7 @@ const NetClient_1 = require("./network/NetClient");
 const constants_1 = require("./utils/constants");
 const utils_1 = require("./utils/utils");
 const events_1 = require("events");
+const clutser_1 = require("./utils/clutser");
 exports.BROADCAST_EVENTS = {
     MESSAGE: 'MESSAGE',
     NETWORK_CHANGE: 'NETWORK_CHANGE',
@@ -15,6 +16,12 @@ exports.MESSAGE_TYPE = {
     BROADCAST: 'BROADCAST',
     TRACE_PROBE: 'TRACE_PROBE',
     REGISTER_NODE: 'REGISTER_NODE',
+};
+const IPC_MESSAGE_ACTIONS = {
+    GET_NODES_LIST: 'GET_NODES_LIST',
+    GET_NODES_NAMES: 'GET_NODES_NAMES',
+    SEND_TO_NODE: 'SEND_TO_NODE',
+    BROADCAST: 'BROADCAST',
 };
 exports.defaultConfiguration = {
     nodesUrls: ['ws://127.0.0.1:8080'],
@@ -66,66 +73,95 @@ class BroadcastService extends events_1.EventEmitter {
             ...exports.defaultConfiguration,
             ...configuration,
         };
-        this.server = new NetServer_1.NetServer(this.id, {
-            port: this.configuration.serverPort,
-            host: this.configuration.serverHost,
-            allowOrigin: this.configuration.serverAllowOrigin,
-        });
-        this.client = new NetClient_1.NetClient(this.id, {
-            urls: this.configuration.nodesUrls,
-            maxAttemps: this.configuration.maxConnectionAttemps,
-        });
+        if (clutser_1.default.isMaster) {
+            this.server = new NetServer_1.NetServer(this.id, {
+                port: this.configuration.serverPort,
+                host: this.configuration.serverHost,
+                allowOrigin: this.configuration.serverAllowOrigin,
+            });
+            this.client = new NetClient_1.NetClient(this.id, {
+                urls: this.configuration.nodesUrls,
+                maxAttemps: this.configuration.maxConnectionAttemps,
+            });
+            clutser_1.default?.on('fork', worker => worker.on('message', this.reattachIpcMessageHandlers));
+            clutser_1.default?.on('exit', _ => this.reattachIpcMessageHandlers());
+        }
+        else {
+            process.on('message', this.workerIncomingIpcMessage);
+        }
     }
     getConfiguration() {
         return this.configuration;
     }
     async initialize() {
-        this.server.on(constants_1.CONNECTION_EVENTS.MESSAGE, this.handleRoutingIncommingMessage);
-        this.client.on(constants_1.CONNECTION_EVENTS.MESSAGE, this.handleRoutingIncommingMessage);
-        this.server.on(constants_1.CONNECTION_EVENTS.CLOSE, this.handleNodesConnectionsChange);
-        this.server.on(constants_1.CONNECTION_EVENTS.OPEN, this.handleNodesConnectionsChange);
-        this.server.on(constants_1.CONNECTION_EVENTS.HANDSHAKE_COMPLETE, this.handleNodesConnectionsChange);
-        this.client.on(constants_1.CONNECTION_EVENTS.HANDSHAKE_COMPLETE, this.handleNodesConnectionsChange);
-        await this.server.initialize();
-        await this.client.initialize();
-        this.updateNodesList();
+        if (clutser_1.default.isMaster) {
+            this.server.on(constants_1.CONNECTION_EVENTS.MESSAGE, this.handleRoutingIncommingMessage);
+            this.client.on(constants_1.CONNECTION_EVENTS.MESSAGE, this.handleRoutingIncommingMessage);
+            this.server.on(constants_1.CONNECTION_EVENTS.CLOSE, this.handleNodesConnectionsChange);
+            this.server.on(constants_1.CONNECTION_EVENTS.OPEN, this.handleNodesConnectionsChange);
+            this.server.on(constants_1.CONNECTION_EVENTS.HANDSHAKE_COMPLETE, this.handleNodesConnectionsChange);
+            this.client.on(constants_1.CONNECTION_EVENTS.HANDSHAKE_COMPLETE, this.handleNodesConnectionsChange);
+            await this.server.initialize();
+            await this.client.initialize();
+            this.updateNodesList();
+        }
     }
-    getConnections() {
+    async getNodesList() {
+        if (clutser_1.default.isMaster) {
+            return this.routes.map(r => r[r.length - 1]);
+        }
+        else {
+            return this.sendIpcActionToMaster(IPC_MESSAGE_ACTIONS.GET_NODES_LIST);
+        }
+    }
+    async getNamedNodes() {
+        if (clutser_1.default.isMaster) {
+            return Object.keys(this.nodeNames).reduce((acc, id) => ({
+                ...acc,
+                [this.nodeNames[id]]: [...(acc[this.nodeNames[id]] || []), id]
+            }), {});
+        }
+        else {
+            return this.sendIpcActionToMaster(IPC_MESSAGE_ACTIONS.GET_NODES_NAMES);
+        }
+    }
+    async broadcast(data) {
+        if (clutser_1.default.isMaster) {
+            for (const route of this.routes) {
+                this.send(route, exports.MESSAGE_TYPE.BROADCAST, data);
+            }
+        }
+        else {
+            return this.sendIpcActionToMaster(IPC_MESSAGE_ACTIONS.BROADCAST, { data });
+        }
+    }
+    async sendToNode(identificator, data) {
+        if (clutser_1.default.isMaster) {
+            const knownNamesIds = Object.keys(this.nodeNames);
+            const foundInNameId = knownNamesIds.find(id => this.nodeNames[id] === identificator);
+            const lookupId = foundInNameId || identificator;
+            const route = this.routes.find(r => r[r.length - 1] === lookupId);
+            if (!route) {
+                throw new Error(`Route to target ${identificator} not found.`);
+            }
+            this.send(route, exports.MESSAGE_TYPE.BROADCAST, data);
+        }
+        else {
+            return this.sendIpcActionToMaster(IPC_MESSAGE_ACTIONS.SEND_TO_NODE, { identificator, data });
+        }
+    }
+    async getConnections() {
         return this.server.getConnections()
             .concat([this.client.getConnection()])
             .filter(Boolean)
             .filter((value, index, self) => self.findIndex(i => i.id === value.id) === index);
-    }
-    getNodesList() {
-        return this.routes.map(r => r[r.length - 1]);
-    }
-    getNamedNodes() {
-        return Object.keys(this.nodeNames).reduce((acc, id) => ({
-            ...acc,
-            [this.nodeNames[id]]: [...(acc[this.nodeNames[id]] || []), id]
-        }), {});
-    }
-    broadcast(data) {
-        for (const route of this.routes) {
-            this.send(route, exports.MESSAGE_TYPE.BROADCAST, data);
-        }
-    }
-    sendToNode(identificator, data) {
-        const knownNamesIds = Object.keys(this.nodeNames);
-        const foundInNameId = knownNamesIds.find(id => this.nodeNames[id] === identificator);
-        const lookupId = foundInNameId || identificator;
-        const route = this.routes.find(r => r[r.length - 1] === lookupId);
-        if (!route) {
-            throw new Error(`Route to target ${identificator} not found.`);
-        }
-        this.send(route, exports.MESSAGE_TYPE.BROADCAST, data);
     }
     async handleIncommingMessage(connection, message) {
         if (message.TYPE === exports.MESSAGE_TYPE.TRACE_PROBE) {
             connection.send({
                 MESSAGE_ID: message.MESSAGE_ID,
                 MESSAGE_RETURN: true,
-                RESULT: this.getConnections().filter(c => c.id !== connection.id).map(c => c.id),
+                RESULT: (await this.getConnections()).filter(c => c.id !== connection.id).map(c => c.id),
             });
         }
         else if (message.TYPE === exports.MESSAGE_TYPE.BROADCAST) {
@@ -133,6 +169,7 @@ class BroadcastService extends events_1.EventEmitter {
                 SENDER: message.SENDER,
                 sendBack: (data) => this.sendToNode(message.SENDER, data),
             });
+            this.sendIpcActionToWorkers(IPC_MESSAGE_ACTIONS.BROADCAST, message);
         }
         else if (message.TYPE === exports.MESSAGE_TYPE.REGISTER_NODE) {
             this.nodeNames[message.DATA.NODE_ID] = message.DATA.NAME;
@@ -142,7 +179,7 @@ class BroadcastService extends events_1.EventEmitter {
     async sendWithResult(targetRoute, type, data) {
         const route = [...targetRoute];
         const firstRoute = route.shift();
-        const connection = this.getConnections().find(c => c.id === firstRoute);
+        const connection = (await this.getConnections()).find(c => c.id === firstRoute);
         if (!connection) {
             throw new Error(`Route to ${firstRoute} not found on node ${this.id}`);
         }
@@ -166,7 +203,7 @@ class BroadcastService extends events_1.EventEmitter {
     async send(targetRoute, type, data, messageId) {
         const route = [...targetRoute];
         const firstRoute = route.shift();
-        const connection = this.getConnections().find(c => c.id === firstRoute);
+        const connection = (await this.getConnections()).find(c => c.id === firstRoute);
         if (!connection) {
             throw new Error(`Route to ${firstRoute} not found on node ${this.id}`);
         }
@@ -179,7 +216,7 @@ class BroadcastService extends events_1.EventEmitter {
         });
     }
     async updateNodesList() {
-        this.routes = this.getConnections().filter(c => !!c.id).map(c => [c.id]);
+        this.routes = (await this.getConnections()).filter(c => !!c.id).map(c => [c.id]);
         for (let i = 0; i < this.routes.length; i++) {
             const testingRoute = this.routes[i];
             let result;
@@ -211,6 +248,78 @@ class BroadcastService extends events_1.EventEmitter {
                 });
             }
         }
+    }
+    reattachIpcMessageHandlers() {
+        Object.keys(clutser_1.default.workers).forEach(workerId => {
+            clutser_1.default.workers?.[workerId]?.removeListener('message', this.masterIncomingIpcMessage);
+            clutser_1.default.workers?.[workerId]?.addListener('message', this.masterIncomingIpcMessage);
+        });
+    }
+    async masterIncomingIpcMessage(message) {
+        if (message.MESH_INTERNAL_MASTER_ACTION) {
+            const sender = clutser_1.default.workers[message.WORKER];
+            let results = null;
+            if (message.MESH_INTERNAL_MASTER_ACTION === IPC_MESSAGE_ACTIONS.BROADCAST) {
+                results = await this.broadcast(message.params.data);
+            }
+            else if (message.MESH_INTERNAL_MASTER_ACTION === IPC_MESSAGE_ACTIONS.GET_NODES_LIST) {
+                results = await this.getNodesList();
+            }
+            else if (message.MESH_INTERNAL_MASTER_ACTION === IPC_MESSAGE_ACTIONS.GET_NODES_NAMES) {
+                results = await this.getNamedNodes();
+            }
+            else if (message.MESH_INTERNAL_MASTER_ACTION === IPC_MESSAGE_ACTIONS.SEND_TO_NODE) {
+                results = await this.sendToNode(message.params.identificator, message.params.data);
+            }
+            else {
+                throw new Error(`BRoadcast service IPC failed, action ${message.MESH_INTERNAL_MASTER_ACTION} was not found.`);
+            }
+            sender.send({
+                MESH_INTERNAL_MASTER_ACTION_RESULT: message.MESH_INTERNAL_MASTER_ACTION,
+                MESSAGE_ID: message.MESSAGE_ID,
+                results,
+            });
+        }
+    }
+    workerIncomingIpcMessage(message) {
+        if (message.MESH_INTERNAL_WORKER_ACTION === IPC_MESSAGE_ACTIONS.BROADCAST) {
+            this.emit(exports.BROADCAST_EVENTS.MESSAGE, message.params.DATA, {
+                SENDER: message.params.SENDER,
+                sendBack: (data) => this.sendToNode(message.params.SENDER, data),
+            });
+        }
+    }
+    async sendIpcActionToMaster(action, params) {
+        if (clutser_1.default.isWorker) {
+            return new Promise((resolve, reject) => {
+                const messageId = utils_1.randomHash();
+                const messageHandler = message => {
+                    if (typeof message === 'object' &&
+                        message.MESSAGE_ID === messageId,
+                        message.message.MESH_INTERNAL_MASTER_ACTION_RESULT) {
+                        process.removeListener('message', messageHandler);
+                        resolve(message.results);
+                    }
+                };
+                process.addListener('message', messageHandler);
+                process.send({
+                    MESH_INTERNAL_MASTER_ACTION: action,
+                    params,
+                    MESSAGE_ID: messageId,
+                    WORKER: clutser_1.default.worker?.id,
+                });
+            });
+        }
+        else {
+            return Promise.reject('Cant send IPC from master');
+        }
+    }
+    sendIpcActionToWorkers(action, params) {
+        const message = {
+            MESH_INTERNAL_WORKER_ACTION: action,
+            params,
+        };
+        Object.keys(clutser_1.default.workers).forEach(workerId => clutser_1.default.workers?.[workerId]?.send(message));
     }
 }
 exports.BroadcastService = BroadcastService;

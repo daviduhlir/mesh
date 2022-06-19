@@ -38,17 +38,22 @@ export declare class BroadcastService extends EventEmitter {
     constructor(configuration: Partial<BroadcastServiceConfiguration>);
     getConfiguration(): BroadcastServiceConfiguration;
     initialize(): Promise<void>;
-    getConnections(): Connection[];
-    getNodesList(): string[];
-    getNamedNodes(): {
+    getNodesList(): Promise<string[]>;
+    getNamedNodes(): Promise<{
         [id: string]: string;
-    };
-    broadcast(data: any): void;
-    sendToNode(identificator: string, data: any): void;
+    }>;
+    broadcast(data: any): Promise<unknown>;
+    sendToNode(identificator: string, data: any): Promise<unknown>;
+    getConnections(): Promise<Connection[]>;
     protected handleNodesConnectionsChange: (connection: Connection) => Promise<void>;
     protected handleRoutingIncommingMessage: (connection: Connection, message: any) => Promise<void>;
     protected handleIncommingMessage(connection: Connection, message: any): Promise<void>;
     protected sendWithResult(targetRoute: string[], type: string, data: any): Promise<any>;
     protected send(targetRoute: string[], type: string, data: any, messageId?: string): Promise<void>;
     protected updateNodesList(): Promise<void>;
+    protected reattachIpcMessageHandlers(): void;
+    protected masterIncomingIpcMessage(message: any): Promise<void>;
+    protected workerIncomingIpcMessage(message: any): void;
+    protected sendIpcActionToMaster<T>(action: string, params?: any): Promise<T>;
+    protected sendIpcActionToWorkers(action: string, params?: any): void;
 }
