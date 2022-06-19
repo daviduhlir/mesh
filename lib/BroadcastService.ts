@@ -442,6 +442,7 @@ export class BroadcastService extends EventEmitter {
    * Send action to master and wait for results
    */
   protected async sendIpcActionToMaster<T>(action: string, params?: any): Promise<T> {
+    // TODO send and also check hash of configuration
     if (cluster.isWorker) {
       return new Promise((resolve, reject) => {
         const messageId = randomHash()
@@ -474,11 +475,13 @@ export class BroadcastService extends EventEmitter {
    * Send action to workers
    */
   protected sendIpcActionToWorkers(action: string, params?: any) {
-    // TODO
-    const message = {
-      MESH_INTERNAL_WORKER_ACTION: action,
-      params,
+    if (cluster.isMaster) {
+      // TODO send and also check hash of configuration
+      const message = {
+        MESH_INTERNAL_WORKER_ACTION: action,
+        params,
+      }
+      Object.keys(cluster.workers).forEach(workerId => cluster.workers?.[workerId]?.send(message))
     }
-    Object.keys(cluster.workers).forEach(workerId => cluster.workers?.[workerId]?.send(message))
   }
 }
