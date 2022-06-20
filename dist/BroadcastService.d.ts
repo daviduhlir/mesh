@@ -3,7 +3,7 @@ import { NetServer } from './network/NetServer';
 import { NetClient } from './network/NetClient';
 import { Connection } from './network/Connection';
 import { EventEmitter } from 'events';
-import { RPC } from './RPC/RPC';
+import { RPC } from './ipc/RPC';
 export declare const BROADCAST_EVENTS: {
     MESSAGE: string;
     NETWORK_CHANGE: string;

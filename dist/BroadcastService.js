@@ -7,7 +7,7 @@ const constants_1 = require("./utils/constants");
 const utils_1 = require("./utils/utils");
 const events_1 = require("events");
 const cluster = require("cluster");
-const RPC_1 = require("./RPC/RPC");
+const RPC_1 = require("./ipc/RPC");
 exports.BROADCAST_EVENTS = {
     MESSAGE: 'MESSAGE',
     NETWORK_CHANGE: 'NETWORK_CHANGE',
