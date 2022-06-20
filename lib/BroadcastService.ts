@@ -393,7 +393,6 @@ export class BroadcastService extends EventEmitter {
     if (message?.MESH_INTERNAL_MASTER_ACTION && message?.SERVICE_HASH === this.configurationHash) {
       const sender = cluster.workers[message.WORKER]
 
-      // TODO connect actions
       let results = null
       if (message.MESH_INTERNAL_MASTER_ACTION === IPC_MESSAGE_ACTIONS.BROADCAST) {
         results = await this.broadcast(message.params.data)
@@ -414,8 +413,6 @@ export class BroadcastService extends EventEmitter {
         results,
       })
     }
-
-    // TODO handle actions and return values
   }
 
   /**
@@ -437,7 +434,6 @@ export class BroadcastService extends EventEmitter {
    * Send action to master and wait for results
    */
   protected async sendIpcActionToMaster<T>(action: string, params?: any): Promise<T> {
-    // TODO send and also check hash of configuration
     if (cluster.isWorker) {
       return new Promise((resolve, reject) => {
         const messageId = randomHash()
@@ -473,7 +469,6 @@ export class BroadcastService extends EventEmitter {
    */
   protected sendIpcActionToWorkers(action: string, params?: any) {
     if (cluster.isMaster) {
-      // TODO send and also check hash of configuration
       const message = {
         MESH_INTERNAL_WORKER_ACTION: action,
         SERVICE_HASH: this.configurationHash,
