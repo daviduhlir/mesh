@@ -121,6 +121,7 @@ class BroadcastService extends events_1.EventEmitter {
                 urls: this.configuration.nodesUrls,
                 maxAttemps: this.configuration.maxConnectionAttemps,
             });
+            this.reattachIpcMessageHandlers();
             clutser_1.default?.on('fork', () => this.reattachIpcMessageHandlers());
             clutser_1.default?.on('exit', () => this.reattachIpcMessageHandlers());
         }

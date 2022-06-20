@@ -4,7 +4,7 @@ import { CONNECTION_EVENTS } from './utils/constants'
 import { hash, randomHash } from './utils/utils'
 import { Connection } from './network/Connection'
 import { EventEmitter } from 'events'
-import cluster from './utils/clutser'
+import * as cluster from 'cluster'
 
 export const BROADCAST_EVENTS = {
   MESSAGE: 'MESSAGE',
@@ -79,6 +79,7 @@ export class BroadcastService extends EventEmitter {
         maxAttemps: this.configuration.maxConnectionAttemps,
       })
 
+      this.reattachIpcMessageHandlers()
       cluster?.on('fork',() => this.reattachIpcMessageHandlers())
       cluster?.on('exit', () => this.reattachIpcMessageHandlers())
     } else {

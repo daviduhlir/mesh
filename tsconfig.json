@@ -14,7 +14,7 @@
     "sourceMap": true,
   },
   "files": [
-    "./lib/index.ts"
+    "./lib/index.ts",
   ],
   "filesGlob": [
     "./lib/**/*.ts",
