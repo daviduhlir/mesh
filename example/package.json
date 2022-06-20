@@ -7,7 +7,7 @@
     "build": "rimraf ./build && tsc",
     "start": "npm run build && node --enable-source-maps ./build/index.js",
     "start:fork": "npm run build && node --enable-source-maps ./build/fork.js",
-    "inspect": "npm run build && node --enable-source-maps --inspect ./build/master.js"
+    "inspect": "npm run build && node --enable-source-maps --inspect ./build/index.js"
   },
   "author": "David Uhlíř",
   "license": "ISC",
