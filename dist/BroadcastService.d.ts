@@ -3,7 +3,7 @@ import { NetServer } from './network/NetServer';
 import { NetClient } from './network/NetClient';
 import { Connection } from './network/Connection';
 import { EventEmitter } from 'events';
-import { RPC } from './ipc/RPC';
+import { IpcMethodHandler } from '@david.uhlir/ipc-method';
 export declare const BROADCAST_EVENTS: {
     MESSAGE: string;
     NETWORK_CHANGE: string;
@@ -37,7 +37,7 @@ export declare class BroadcastService extends EventEmitter {
         [id: string]: string;
     };
     protected configurationHash: string;
-    protected rpc: RPC;
+    protected ipcMethod: IpcMethodHandler;
     constructor(configuration: Partial<BroadcastServiceConfiguration>);
     getConfiguration(): BroadcastServiceConfiguration;
     initialize(): Promise<void>;

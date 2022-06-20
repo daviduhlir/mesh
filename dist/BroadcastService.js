@@ -7,7 +7,7 @@ const constants_1 = require("./utils/constants");
 const utils_1 = require("./utils/utils");
 const events_1 = require("events");
 const cluster = require("cluster");
-const RPC_1 = require("./ipc/RPC");
+const ipc_method_1 = require("@david.uhlir/ipc-method");
 exports.BROADCAST_EVENTS = {
     MESSAGE: 'MESSAGE',
     NETWORK_CHANGE: 'NETWORK_CHANGE',
@@ -91,7 +91,7 @@ class BroadcastService extends events_1.EventEmitter {
                 urls: this.configuration.nodesUrls,
                 maxAttemps: this.configuration.maxConnectionAttemps,
             });
-            this.rpc = new RPC_1.RPC(['MESH_NETWORK', this.configurationHash], {
+            this.ipcMethod = new ipc_method_1.IpcMethodHandler(['MESH_NETWORK', this.configurationHash], {
                 [IPC_MESSAGE_ACTIONS.BROADCAST]: this.broadcast.bind(this),
                 [IPC_MESSAGE_ACTIONS.GET_NODES_LIST]: this.getNodesList.bind(this),
                 [IPC_MESSAGE_ACTIONS.GET_NODES_NAMES]: this.getNamedNodes.bind(this),
@@ -99,7 +99,7 @@ class BroadcastService extends events_1.EventEmitter {
             });
         }
         else {
-            this.rpc = new RPC_1.RPC(['MESH_NETWORK', this.configurationHash], {
+            this.ipcMethod = new ipc_method_1.IpcMethodHandler(['MESH_NETWORK', this.configurationHash], {
                 [IPC_MESSAGE_ACTIONS.BROADCAST]: this.emitBroadcast.bind(this),
             });
         }
@@ -125,7 +125,7 @@ class BroadcastService extends events_1.EventEmitter {
             return this.routes.map(r => r[r.length - 1]);
         }
         else {
-            return (await this.rpc.callWithResult(IPC_MESSAGE_ACTIONS.GET_NODES_LIST)).firstResult;
+            return (await this.ipcMethod.callWithResult(IPC_MESSAGE_ACTIONS.GET_NODES_LIST)).firstResult;
         }
     }
     async getNamedNodes() {
@@ -136,7 +136,7 @@ class BroadcastService extends events_1.EventEmitter {
             }), {});
         }
         else {
-            return (await this.rpc.callWithResult(IPC_MESSAGE_ACTIONS.GET_NODES_NAMES)).firstResult;
+            return (await this.ipcMethod.callWithResult(IPC_MESSAGE_ACTIONS.GET_NODES_NAMES)).firstResult;
         }
     }
     async broadcast(data) {
@@ -146,7 +146,7 @@ class BroadcastService extends events_1.EventEmitter {
             }
         }
         else {
-            return (await this.rpc.callWithResult(IPC_MESSAGE_ACTIONS.BROADCAST, data)).firstResult;
+            return (await this.ipcMethod.callWithResult(IPC_MESSAGE_ACTIONS.BROADCAST, data)).firstResult;
         }
     }
     async sendToNode(identificator, data) {
@@ -161,7 +161,7 @@ class BroadcastService extends events_1.EventEmitter {
             this.send(route, exports.MESSAGE_TYPE.BROADCAST, data);
         }
         else {
-            return (await this.rpc.callWithResult(IPC_MESSAGE_ACTIONS.SEND_TO_NODE, identificator, data)).firstResult;
+            return (await this.ipcMethod.callWithResult(IPC_MESSAGE_ACTIONS.SEND_TO_NODE, identificator, data)).firstResult;
         }
     }
     async getConnections() {
@@ -180,7 +180,7 @@ class BroadcastService extends events_1.EventEmitter {
         }
         else if (message.TYPE === exports.MESSAGE_TYPE.BROADCAST) {
             this.emitBroadcast(message.DATA, message.SENDER);
-            this.rpc.call(IPC_MESSAGE_ACTIONS.BROADCAST, message.DATA, message.SENDER);
+            this.ipcMethod.call(IPC_MESSAGE_ACTIONS.BROADCAST, message.DATA, message.SENDER);
         }
         else if (message.TYPE === exports.MESSAGE_TYPE.REGISTER_NODE) {
             this.nodeNames[message.DATA.NODE_ID] = message.DATA.NAME;

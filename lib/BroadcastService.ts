@@ -5,7 +5,7 @@ import { hash, randomHash } from './utils/utils'
 import { Connection } from './network/Connection'
 import { EventEmitter } from 'events'
 import * as cluster from 'cluster'
-import { IpcMethodHandler } from './ipc/IpcMethodHandler'
+import { IpcMethodHandler } from '@david.uhlir/ipc-method'
 
 export const BROADCAST_EVENTS = {
   MESSAGE: 'MESSAGE',
