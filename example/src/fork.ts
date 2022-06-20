@@ -1,4 +1,4 @@
-import { BroadcastService, BROADCAST_EVENTS, RPC } from '@david.uhlir/mesh'
+import { BroadcastService, BROADCAST_EVENTS } from '@david.uhlir/mesh'
 import * as cluster from 'cluster'
 
 // create network on one server -> it's posible when you are using different ports
@@ -46,27 +46,3 @@ if (cluster.isMaster) {
     test(index)
   })
 }
-
-/*
-if (cluster.isMaster) {
-  // initialize and attach message event
-  cluster.fork()
-
-  const rpc = new RPC(['test'], {
-    hello: async () => {
-      console.log('Hello world')
-      return 'response text'
-    },
-  })
-
-  rpc.callWithResult('hello')
-} else {
-  const rpc = new RPC(['test'], {
-    hello: async () => console.log('Hello in fork')
-  })
-
-  setTimeout(async () => {
-    const result = await rpc.callWithResult('hello')
-    console.log(result.firstResult)
-  }, 100)
-}*/
