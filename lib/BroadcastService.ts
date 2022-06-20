@@ -5,7 +5,7 @@ import { hash, randomHash } from './utils/utils'
 import { Connection } from './network/Connection'
 import { EventEmitter } from 'events'
 import * as cluster from 'cluster'
-import { RPC } from './RPC/RPC'
+import { RPC } from './ipc/RPC'
 
 export const BROADCAST_EVENTS = {
   MESSAGE: 'MESSAGE',
