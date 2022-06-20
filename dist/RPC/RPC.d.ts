@@ -23,8 +23,8 @@ export declare class RPC {
     constructor(topics: string[], receivers?: {
         [name: string]: (...params: any[]) => Promise<any>;
     });
-    callWithResult<T>(action: string, params?: any): Promise<RPCResult<T>>;
-    call(action: string, params?: any): RPCMessage;
+    callWithResult<T>(action: string, ...params: any[]): Promise<RPCResult<T>>;
+    call(action: string, ...params: any[]): RPCMessage;
     protected get processes(): (NodeJS.Process | cluster.Worker)[];
     protected reattachMessageHandlers(): void;
     protected handleIncomingMessage: (message: RPCMessage) => Promise<void>;

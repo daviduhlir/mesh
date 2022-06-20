@@ -35,7 +35,7 @@ export class RPC {
   /**
    * Send message and wait for results
    */
-  public async callWithResult<T>(action: string, params?: any): Promise<RPCResult<T>> {
+  public async callWithResult<T>(action: string, ...params: any[]): Promise<RPCResult<T>> {
     let outgoingMessage: RPCMessage = null
 
     const results = Promise.all(
@@ -69,14 +69,14 @@ export class RPC {
         p.addListener('exit', rejectHandler)
       }))
     )
-    outgoingMessage = this.call(action, params)
+    outgoingMessage = this.call(action, ...params)
     return new RPCResult(await results)
   }
 
   /**
    * Sends message
    */
-  public call(action: string, params?: any): RPCMessage {
+  public call(action: string, ...params: any[]): RPCMessage {
     const messageId = randomHash()
 
     const message = {
@@ -124,7 +124,6 @@ export class RPC {
   protected handleIncomingMessage = async (message: RPCMessage) => {
     if (
       typeof message === 'object' &&
-      message.MESSAGE_ID &&
       message.ACTION &&
       !message.RESULT &&
       arrayCompare(message.TOPICS, this.topics)
@@ -138,18 +137,20 @@ export class RPC {
         }
         value = await this.receivers[message.ACTION](...(message.PARAMS || []))
       } catch(e) {
-        error = e
+        error = e.toString()
       }
 
-      const resultMessage: RPCMessage = {
-        TOPICS: message.TOPICS,
-        ACTION: message.ACTION,
-        MESSAGE_ID: message.MESSAGE_ID,
-        RESULT: error ? MESSAGE_RESULT.ERROR : MESSAGE_RESULT.SUCCESS,
-        error,
-        value,
+      if (message.MESSAGE_ID) {
+        const resultMessage: RPCMessage = {
+          TOPICS: message.TOPICS,
+          ACTION: message.ACTION,
+          MESSAGE_ID: message.MESSAGE_ID,
+          RESULT: error ? MESSAGE_RESULT.ERROR : MESSAGE_RESULT.SUCCESS,
+          error,
+          value,
+        }
+        this.processes.forEach(p => p.send(resultMessage))
       }
-      this.processes.forEach(p => p.send(resultMessage))
     }
   }
 }

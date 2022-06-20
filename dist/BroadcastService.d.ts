@@ -3,6 +3,7 @@ import { NetServer } from './network/NetServer';
 import { NetClient } from './network/NetClient';
 import { Connection } from './network/Connection';
 import { EventEmitter } from 'events';
+import { RPC } from './RPC/RPC';
 export declare const BROADCAST_EVENTS: {
     MESSAGE: string;
     NETWORK_CHANGE: string;
@@ -27,6 +28,7 @@ export interface BroadcastServiceConfiguration {
 }
 export declare const defaultConfiguration: BroadcastServiceConfiguration;
 export declare class BroadcastService extends EventEmitter {
+    readonly id: string;
     protected configuration: BroadcastServiceConfiguration;
     protected server: NetServer;
     protected client: NetClient;
@@ -34,8 +36,8 @@ export declare class BroadcastService extends EventEmitter {
     protected nodeNames: {
         [id: string]: string;
     };
-    readonly id: string;
     protected configurationHash: string;
+    protected rpc: RPC;
     constructor(configuration: Partial<BroadcastServiceConfiguration>);
     getConfiguration(): BroadcastServiceConfiguration;
     initialize(): Promise<void>;
@@ -43,18 +45,18 @@ export declare class BroadcastService extends EventEmitter {
     getNamedNodes(): Promise<{
         [id: string]: string;
     }>;
-    broadcast(data: any): Promise<unknown>;
-    sendToNode(identificator: string, data: any): Promise<unknown>;
+    broadcast(data: any): Promise<{
+        [id: string]: string;
+    }>;
+    sendToNode(identificator: string, data: any): Promise<{
+        [id: string]: string;
+    }>;
     getConnections(): Promise<Connection[]>;
     protected handleNodesConnectionsChange: (connection: Connection) => Promise<void>;
     protected handleRoutingIncommingMessage: (connection: Connection, message: any) => Promise<void>;
     protected handleIncommingMessage(connection: Connection, message: any): Promise<void>;
     protected sendWithResult(targetRoute: string[], type: string, data: any): Promise<any>;
     protected send(targetRoute: string[], type: string, data: any, messageId?: string): Promise<void>;
+    protected emitBroadcast: (data: any, sender: string) => Promise<void>;
     protected updateNodesList(): Promise<void>;
-    protected reattachIpcMessageHandlers(): void;
-    protected masterIncomingIpcMessage: (message: any) => Promise<void>;
-    protected workerIncomingIpcMessage: (message: any) => Promise<void>;
-    protected sendIpcActionToMaster<T>(action: string, params?: any): Promise<T>;
-    protected sendIpcActionToWorkers(action: string, params?: any): void;
 }

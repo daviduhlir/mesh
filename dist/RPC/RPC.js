@@ -14,7 +14,6 @@ class RPC {
         this.receivers = receivers;
         this.handleIncomingMessage = async (message) => {
             if (typeof message === 'object' &&
-                message.MESSAGE_ID &&
                 message.ACTION &&
                 !message.RESULT &&
                 utils_1.arrayCompare(message.TOPICS, this.topics)) {
@@ -27,17 +26,19 @@ class RPC {
                     value = await this.receivers[message.ACTION](...(message.PARAMS || []));
                 }
                 catch (e) {
-                    error = e;
+                    error = e.toString();
                 }
-                const resultMessage = {
-                    TOPICS: message.TOPICS,
-                    ACTION: message.ACTION,
-                    MESSAGE_ID: message.MESSAGE_ID,
-                    RESULT: error ? exports.MESSAGE_RESULT.ERROR : exports.MESSAGE_RESULT.SUCCESS,
-                    error,
-                    value,
-                };
-                this.processes.forEach(p => p.send(resultMessage));
+                if (message.MESSAGE_ID) {
+                    const resultMessage = {
+                        TOPICS: message.TOPICS,
+                        ACTION: message.ACTION,
+                        MESSAGE_ID: message.MESSAGE_ID,
+                        RESULT: error ? exports.MESSAGE_RESULT.ERROR : exports.MESSAGE_RESULT.SUCCESS,
+                        error,
+                        value,
+                    };
+                    this.processes.forEach(p => p.send(resultMessage));
+                }
             }
         };
         if (cluster.isMaster) {
@@ -49,7 +50,7 @@ class RPC {
             process.on('message', this.handleIncomingMessage);
         }
     }
-    async callWithResult(action, params) {
+    async callWithResult(action, ...params) {
         let outgoingMessage = null;
         const results = Promise.all(this.processes.map(p => new Promise((resolve, reject) => {
             const messageHandler = (message) => {
@@ -76,10 +77,10 @@ class RPC {
             p.addListener('message', messageHandler);
             p.addListener('exit', rejectHandler);
         })));
-        outgoingMessage = this.call(action, params);
+        outgoingMessage = this.call(action, ...params);
         return new RPCResult_1.RPCResult(await results);
     }
-    call(action, params) {
+    call(action, ...params) {
         const messageId = utils_1.randomHash();
         const message = {
             TOPICS: this.topics,
