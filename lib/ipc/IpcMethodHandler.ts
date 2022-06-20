@@ -1,8 +1,8 @@
 import * as cluster from 'cluster'
 import { arrayCompare, randomHash } from '../utils/utils'
-import { RPCResult } from './RPCResult'
+import { IpcMethodResult } from './IpcMethodResult'
 
-export interface RPCMessage {
+export interface IpcInternalMessage {
   TOPICS: string[]
   ACTION: string
   PARAMS?: any[]
@@ -18,7 +18,7 @@ export const MESSAGE_RESULT = {
   ERROR: 'ERROR',
 }
 
-export class RPC {
+export class IpcMethodHandler {
   constructor(
     public readonly topics: string[],
     public readonly receivers: {[name: string]: (...params: any[]) => Promise<any>} = {}
@@ -35,12 +35,12 @@ export class RPC {
   /**
    * Send message and wait for results
    */
-  public async callWithResult<T>(action: string, ...params: any[]): Promise<RPCResult<T>> {
-    let outgoingMessage: RPCMessage = null
+  public async callWithResult<T>(action: string, ...params: any[]): Promise<IpcMethodResult<T>> {
+    let outgoingMessage: IpcInternalMessage = null
 
     const results = Promise.all(
       this.processes.map(p => new Promise((resolve, reject) => {
-        const messageHandler = (message: RPCMessage) => {
+        const messageHandler = (message: IpcInternalMessage) => {
           if (
             typeof message === 'object' &&
             message.MESSAGE_ID === outgoingMessage.MESSAGE_ID &&
@@ -70,13 +70,13 @@ export class RPC {
       }))
     )
     outgoingMessage = this.call(action, ...params)
-    return new RPCResult(await results)
+    return new IpcMethodResult(await results)
   }
 
   /**
    * Sends message
    */
-  public call(action: string, ...params: any[]): RPCMessage {
+  public call(action: string, ...params: any[]): IpcInternalMessage {
     const messageId = randomHash()
 
     const message = {
@@ -121,7 +121,7 @@ export class RPC {
    * Handle master incomming message
    * @param message
    */
-  protected handleIncomingMessage = async (message: RPCMessage) => {
+  protected handleIncomingMessage = async (message: IpcInternalMessage) => {
     if (
       typeof message === 'object' &&
       message.ACTION &&
@@ -141,7 +141,7 @@ export class RPC {
       }
 
       if (message.MESSAGE_ID) {
-        const resultMessage: RPCMessage = {
+        const resultMessage: IpcInternalMessage = {
           TOPICS: message.TOPICS,
           ACTION: message.ACTION,
           MESSAGE_ID: message.MESSAGE_ID,

@@ -5,7 +5,7 @@ import { hash, randomHash } from './utils/utils'
 import { Connection } from './network/Connection'
 import { EventEmitter } from 'events'
 import * as cluster from 'cluster'
-import { RPC } from './ipc/RPC'
+import { IpcMethodHandler } from './ipc/IpcMethodHandler'
 
 export const BROADCAST_EVENTS = {
   MESSAGE: 'MESSAGE',
@@ -58,7 +58,7 @@ export class BroadcastService extends EventEmitter {
   protected nodeNames: {[id: string]: string} = {}
 
   protected configurationHash: string
-  protected rpc: RPC
+  protected ipcMethod: IpcMethodHandler
 
   constructor(configuration: Partial<BroadcastServiceConfiguration>) {
     super()
@@ -82,7 +82,7 @@ export class BroadcastService extends EventEmitter {
         maxAttemps: this.configuration.maxConnectionAttemps,
       })
 
-      this.rpc = new RPC(['MESH_NETWORK', this.configurationHash], {
+      this.ipcMethod = new IpcMethodHandler(['MESH_NETWORK', this.configurationHash], {
         [IPC_MESSAGE_ACTIONS.BROADCAST]: this.broadcast.bind(this),
         [IPC_MESSAGE_ACTIONS.GET_NODES_LIST]: this.getNodesList.bind(this),
         [IPC_MESSAGE_ACTIONS.GET_NODES_NAMES]: this.getNamedNodes.bind(this),
@@ -90,7 +90,7 @@ export class BroadcastService extends EventEmitter {
       })
 
     } else {
-      this.rpc = new RPC(['MESH_NETWORK', this.configurationHash], {
+      this.ipcMethod = new IpcMethodHandler(['MESH_NETWORK', this.configurationHash], {
         [IPC_MESSAGE_ACTIONS.BROADCAST]: this.emitBroadcast.bind(this),
       })
     }
@@ -136,7 +136,7 @@ export class BroadcastService extends EventEmitter {
     if (cluster.isMaster) {
       return this.routes.map(r => r[r.length - 1])
     } else {
-      return (await this.rpc.callWithResult<string[]>(IPC_MESSAGE_ACTIONS.GET_NODES_LIST)).firstResult
+      return (await this.ipcMethod.callWithResult<string[]>(IPC_MESSAGE_ACTIONS.GET_NODES_LIST)).firstResult
     }
   }
 
@@ -150,7 +150,7 @@ export class BroadcastService extends EventEmitter {
         [this.nodeNames[id]]: [...(acc[this.nodeNames[id]] || []), id]
       }),{})
     } else {
-      return (await this.rpc.callWithResult<{[id: string]: string}>(IPC_MESSAGE_ACTIONS.GET_NODES_NAMES)).firstResult
+      return (await this.ipcMethod.callWithResult<{[id: string]: string}>(IPC_MESSAGE_ACTIONS.GET_NODES_NAMES)).firstResult
     }
   }
 
@@ -163,7 +163,7 @@ export class BroadcastService extends EventEmitter {
         this.send(route, MESSAGE_TYPE.BROADCAST, data)
       }
     } else {
-      return (await this.rpc.callWithResult<{[id: string]: string}>(IPC_MESSAGE_ACTIONS.BROADCAST, data)).firstResult
+      return (await this.ipcMethod.callWithResult<{[id: string]: string}>(IPC_MESSAGE_ACTIONS.BROADCAST, data)).firstResult
     }
   }
 
@@ -183,7 +183,7 @@ export class BroadcastService extends EventEmitter {
 
       this.send(route, MESSAGE_TYPE.BROADCAST, data)
     } else {
-      return (await this.rpc.callWithResult<{[id: string]: string}>(IPC_MESSAGE_ACTIONS.SEND_TO_NODE, identificator, data)).firstResult
+      return (await this.ipcMethod.callWithResult<{[id: string]: string}>(IPC_MESSAGE_ACTIONS.SEND_TO_NODE, identificator, data)).firstResult
     }
   }
 
@@ -259,7 +259,7 @@ export class BroadcastService extends EventEmitter {
     } else if (message.TYPE === MESSAGE_TYPE.BROADCAST) {
 
       this.emitBroadcast(message.DATA, message.SENDER)
-      this.rpc.call(IPC_MESSAGE_ACTIONS.BROADCAST, message.DATA, message.SENDER)
+      this.ipcMethod.call(IPC_MESSAGE_ACTIONS.BROADCAST, message.DATA, message.SENDER)
 
     } else if (message.TYPE === MESSAGE_TYPE.REGISTER_NODE) {
 
