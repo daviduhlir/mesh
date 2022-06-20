@@ -69,10 +69,48 @@ class BroadcastService extends events_1.EventEmitter {
                 this.handleIncommingMessage(connection, message);
             }
         };
+        this.masterIncomingIpcMessage = async (message) => {
+            if (message?.MESH_INTERNAL_MASTER_ACTION && message?.SERVICE_HASH === this.configurationHash) {
+                const sender = clutser_1.default.workers[message.WORKER];
+                let results = null;
+                if (message.MESH_INTERNAL_MASTER_ACTION === IPC_MESSAGE_ACTIONS.BROADCAST) {
+                    results = await this.broadcast(message.params.data);
+                }
+                else if (message.MESH_INTERNAL_MASTER_ACTION === IPC_MESSAGE_ACTIONS.GET_NODES_LIST) {
+                    results = await this.getNodesList();
+                }
+                else if (message.MESH_INTERNAL_MASTER_ACTION === IPC_MESSAGE_ACTIONS.GET_NODES_NAMES) {
+                    results = await this.getNamedNodes();
+                }
+                else if (message.MESH_INTERNAL_MASTER_ACTION === IPC_MESSAGE_ACTIONS.SEND_TO_NODE) {
+                    results = await this.sendToNode(message.params.identificator, message.params.data);
+                }
+                else {
+                    throw new Error(`BRoadcast service IPC failed, action ${message.MESH_INTERNAL_MASTER_ACTION} was not found.`);
+                }
+                sender.send({
+                    MESH_INTERNAL_MASTER_ACTION_RESULT: message.MESH_INTERNAL_MASTER_ACTION,
+                    MESSAGE_ID: message.MESSAGE_ID,
+                    SERVICE_HASH: this.configurationHash,
+                    results,
+                });
+            }
+        };
+        this.workerIncomingIpcMessage = async (message) => {
+            if (message?.MESH_INTERNAL_WORKER_ACTION && message?.SERVICE_HASH === this.configurationHash) {
+                if (message.MESH_INTERNAL_WORKER_ACTION === IPC_MESSAGE_ACTIONS.BROADCAST) {
+                    this.emit(exports.BROADCAST_EVENTS.MESSAGE, message.params.DATA, {
+                        SENDER: message.params.SENDER,
+                        sendBack: (data) => this.sendToNode(message.params.SENDER, data),
+                    });
+                }
+            }
+        };
         this.configuration = {
             ...exports.defaultConfiguration,
             ...configuration,
         };
+        this.configurationHash = utils_1.hash(JSON.stringify(this.configuration));
         if (clutser_1.default.isMaster) {
             this.server = new NetServer_1.NetServer(this.id, {
                 port: this.configuration.serverPort,
@@ -83,8 +121,8 @@ class BroadcastService extends events_1.EventEmitter {
                 urls: this.configuration.nodesUrls,
                 maxAttemps: this.configuration.maxConnectionAttemps,
             });
-            clutser_1.default?.on('fork', worker => worker.on('message', this.reattachIpcMessageHandlers));
-            clutser_1.default?.on('exit', _ => this.reattachIpcMessageHandlers());
+            clutser_1.default?.on('fork', () => this.reattachIpcMessageHandlers());
+            clutser_1.default?.on('exit', () => this.reattachIpcMessageHandlers());
         }
         else {
             process.on('message', this.workerIncomingIpcMessage);
@@ -255,40 +293,6 @@ class BroadcastService extends events_1.EventEmitter {
             clutser_1.default.workers?.[workerId]?.addListener('message', this.masterIncomingIpcMessage);
         });
     }
-    async masterIncomingIpcMessage(message) {
-        if (message.MESH_INTERNAL_MASTER_ACTION) {
-            const sender = clutser_1.default.workers[message.WORKER];
-            let results = null;
-            if (message.MESH_INTERNAL_MASTER_ACTION === IPC_MESSAGE_ACTIONS.BROADCAST) {
-                results = await this.broadcast(message.params.data);
-            }
-            else if (message.MESH_INTERNAL_MASTER_ACTION === IPC_MESSAGE_ACTIONS.GET_NODES_LIST) {
-                results = await this.getNodesList();
-            }
-            else if (message.MESH_INTERNAL_MASTER_ACTION === IPC_MESSAGE_ACTIONS.GET_NODES_NAMES) {
-                results = await this.getNamedNodes();
-            }
-            else if (message.MESH_INTERNAL_MASTER_ACTION === IPC_MESSAGE_ACTIONS.SEND_TO_NODE) {
-                results = await this.sendToNode(message.params.identificator, message.params.data);
-            }
-            else {
-                throw new Error(`BRoadcast service IPC failed, action ${message.MESH_INTERNAL_MASTER_ACTION} was not found.`);
-            }
-            sender.send({
-                MESH_INTERNAL_MASTER_ACTION_RESULT: message.MESH_INTERNAL_MASTER_ACTION,
-                MESSAGE_ID: message.MESSAGE_ID,
-                results,
-            });
-        }
-    }
-    workerIncomingIpcMessage(message) {
-        if (message.MESH_INTERNAL_WORKER_ACTION === IPC_MESSAGE_ACTIONS.BROADCAST) {
-            this.emit(exports.BROADCAST_EVENTS.MESSAGE, message.params.DATA, {
-                SENDER: message.params.SENDER,
-                sendBack: (data) => this.sendToNode(message.params.SENDER, data),
-            });
-        }
-    }
     async sendIpcActionToMaster(action, params) {
         if (clutser_1.default.isWorker) {
             return new Promise((resolve, reject) => {
@@ -296,7 +300,8 @@ class BroadcastService extends events_1.EventEmitter {
                 const messageHandler = message => {
                     if (typeof message === 'object' &&
                         message.MESSAGE_ID === messageId,
-                        message.message.MESH_INTERNAL_MASTER_ACTION_RESULT) {
+                        message.MESH_INTERNAL_MASTER_ACTION_RESULT &&
+                            message.SERVICE_HASH === this.configurationHash) {
                         process.removeListener('message', messageHandler);
                         resolve(message.results);
                     }
@@ -307,6 +312,7 @@ class BroadcastService extends events_1.EventEmitter {
                     params,
                     MESSAGE_ID: messageId,
                     WORKER: clutser_1.default.worker?.id,
+                    SERVICE_HASH: this.configurationHash,
                 });
             });
         }
@@ -315,11 +321,14 @@ class BroadcastService extends events_1.EventEmitter {
         }
     }
     sendIpcActionToWorkers(action, params) {
-        const message = {
-            MESH_INTERNAL_WORKER_ACTION: action,
-            params,
-        };
-        Object.keys(clutser_1.default.workers).forEach(workerId => clutser_1.default.workers?.[workerId]?.send(message));
+        if (clutser_1.default.isMaster) {
+            const message = {
+                MESH_INTERNAL_WORKER_ACTION: action,
+                SERVICE_HASH: this.configurationHash,
+                params,
+            };
+            Object.keys(clutser_1.default.workers).forEach(workerId => clutser_1.default.workers?.[workerId]?.send(message));
+        }
     }
 }
 exports.BroadcastService = BroadcastService;

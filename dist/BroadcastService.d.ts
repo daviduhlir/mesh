@@ -35,6 +35,7 @@ export declare class BroadcastService extends EventEmitter {
         [id: string]: string;
     };
     readonly id: string;
+    protected configurationHash: string;
     constructor(configuration: Partial<BroadcastServiceConfiguration>);
     getConfiguration(): BroadcastServiceConfiguration;
     initialize(): Promise<void>;
@@ -52,8 +53,8 @@ export declare class BroadcastService extends EventEmitter {
     protected send(targetRoute: string[], type: string, data: any, messageId?: string): Promise<void>;
     protected updateNodesList(): Promise<void>;
     protected reattachIpcMessageHandlers(): void;
-    protected masterIncomingIpcMessage(message: any): Promise<void>;
-    protected workerIncomingIpcMessage(message: any): void;
+    protected masterIncomingIpcMessage: (message: any) => Promise<void>;
+    protected workerIncomingIpcMessage: (message: any) => Promise<void>;
     protected sendIpcActionToMaster<T>(action: string, params?: any): Promise<T>;
     protected sendIpcActionToWorkers(action: string, params?: any): void;
 }

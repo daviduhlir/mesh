@@ -1,7 +1,7 @@
 import { NetServer } from './network/NetServer'
 import { NetClient } from './network/NetClient'
 import { CONNECTION_EVENTS } from './utils/constants'
-import { randomHash } from './utils/utils'
+import { hash, randomHash } from './utils/utils'
 import { Connection } from './network/Connection'
 import { EventEmitter } from 'events'
 import cluster from './utils/clutser'
@@ -55,6 +55,7 @@ export class BroadcastService extends EventEmitter {
   protected nodeNames: {[id: string]: string} = {}
 
   public readonly id: string = randomHash()
+  protected configurationHash: string
 
   constructor(configuration: Partial<BroadcastServiceConfiguration>) {
     super()
@@ -64,7 +65,7 @@ export class BroadcastService extends EventEmitter {
       ...configuration,
     }
 
-    // TODO this is only for testing - this.id = this.configuration.serverPort
+    this.configurationHash = hash(JSON.stringify(this.configuration))
 
     if (cluster.isMaster) {
       this.server = new NetServer(this.id, {
@@ -78,18 +79,9 @@ export class BroadcastService extends EventEmitter {
         maxAttemps: this.configuration.maxConnectionAttemps,
       })
 
-      cluster?.on('fork', worker => worker.on('message', this.reattachIpcMessageHandlers))
-      cluster?.on('exit', _ => this.reattachIpcMessageHandlers())
+      cluster?.on('fork',() => this.reattachIpcMessageHandlers())
+      cluster?.on('exit', () => this.reattachIpcMessageHandlers())
     } else {
-      /**
-       *
-       * TODO!!!!!
-       *
-       * This should be separated by master and cluster worker.
-       * If you create this class in worker, it should communicate by IPC to have
-       * same behaviour!
-       *
-       */
       process.on('message', this.workerIncomingIpcMessage)
     }
   }
@@ -397,8 +389,8 @@ export class BroadcastService extends EventEmitter {
    * Handle master incomming message
    * @param message
    */
-  protected async masterIncomingIpcMessage(message: any) {
-    if (message.MESH_INTERNAL_MASTER_ACTION) {
+  protected masterIncomingIpcMessage = async (message: any) => {
+    if (message?.MESH_INTERNAL_MASTER_ACTION && message?.SERVICE_HASH === this.configurationHash) {
       const sender = cluster.workers[message.WORKER]
 
       // TODO connect actions
@@ -418,6 +410,7 @@ export class BroadcastService extends EventEmitter {
       sender.send({
         MESH_INTERNAL_MASTER_ACTION_RESULT: message.MESH_INTERNAL_MASTER_ACTION,
         MESSAGE_ID: message.MESSAGE_ID,
+        SERVICE_HASH: this.configurationHash,
         results,
       })
     }
@@ -429,12 +422,14 @@ export class BroadcastService extends EventEmitter {
    * Handle master incomming message
    * @param message
    */
-  protected workerIncomingIpcMessage(message: any) {
-    if (message.MESH_INTERNAL_WORKER_ACTION === IPC_MESSAGE_ACTIONS.BROADCAST) {
-      this.emit(BROADCAST_EVENTS.MESSAGE, message.params.DATA, {
-        SENDER: message.params.SENDER,
-        sendBack: (data) => this.sendToNode(message.params.SENDER, data),
-      })
+  protected workerIncomingIpcMessage = async (message: any) => {
+    if (message?.MESH_INTERNAL_WORKER_ACTION && message?.SERVICE_HASH === this.configurationHash) {
+      if (message.MESH_INTERNAL_WORKER_ACTION === IPC_MESSAGE_ACTIONS.BROADCAST) {
+        this.emit(BROADCAST_EVENTS.MESSAGE, message.params.DATA, {
+          SENDER: message.params.SENDER,
+          sendBack: (data) => this.sendToNode(message.params.SENDER, data),
+        })
+      }
     }
   }
 
@@ -451,7 +446,8 @@ export class BroadcastService extends EventEmitter {
           if (
             typeof message === 'object' &&
             message.MESSAGE_ID === messageId,
-            message.message.MESH_INTERNAL_MASTER_ACTION_RESULT
+            message.MESH_INTERNAL_MASTER_ACTION_RESULT &&
+            message.SERVICE_HASH === this.configurationHash
           ) {
             process.removeListener('message', messageHandler)
             resolve(message.results)
@@ -464,6 +460,7 @@ export class BroadcastService extends EventEmitter {
           params,
           MESSAGE_ID: messageId,
           WORKER: cluster.worker?.id,
+          SERVICE_HASH: this.configurationHash,
         })
       })
     } else {
@@ -479,6 +476,7 @@ export class BroadcastService extends EventEmitter {
       // TODO send and also check hash of configuration
       const message = {
         MESH_INTERNAL_WORKER_ACTION: action,
+        SERVICE_HASH: this.configurationHash,
         params,
       }
       Object.keys(cluster.workers).forEach(workerId => cluster.workers?.[workerId]?.send(message))
