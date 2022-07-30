@@ -8,14 +8,17 @@ Every each node can has more fallback addresses, that will be used when current 
 Communication between nodes is realized by proxing message on each node depends on target position in mesh.
 Also there can be specified trace for every each message, to optimize transfer speed, standarty it using the shortest posible way.
 
+Connection is secured by secret, that is configured on each server. In URL of node, it needs to be specified before url, separated by @.
+
 Example of service:
 ```ts
 import { BroadcastService, BROADCAST_EVENTS } from '@david.uhlir/mesh'
 
 (async function() {
   const network = new BroadcastService({
-    nodesUrls: [ 'ws://123.456.789.255:3000/'],
+    nodesUrls: [ 'some-secret@ws://123.456.789.255:3000/'],
     serverPort: 3000,
+    serverSecret: 'some-secret',
   })
   // initialize connections
   await network.initialize()
