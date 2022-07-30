@@ -9,6 +9,7 @@ const Connection_1 = require("./Connection");
 exports.defaultConfiguration = {
     port: 8080,
     host: '127.0.0.1',
+    secret: 'default',
     allowOrigin: (origin) => true
 };
 class NetServer extends events_1.EventEmitter {
@@ -21,6 +22,10 @@ class NetServer extends events_1.EventEmitter {
                 request.reject();
                 console.log('Mesh Connection from origin ' + request.origin + ' rejected');
                 return;
+            }
+            if (request?.httpRequest?.headers['net-secret'] !== this.configuration.secret) {
+                request.reject();
+                console.log('Mesh Connection from origin ' + request.origin + ' rejected, authorization needed');
             }
             const connection = new Connection_1.Connection(request.accept('echo-protocol', request.origin));
             connection.on(constants_1.CONNECTION_EVENTS.MESSAGE, this.handleIncommingMessage);

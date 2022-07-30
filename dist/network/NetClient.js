@@ -86,6 +86,7 @@ class NetClient extends events_1.EventEmitter {
         if (this.isConnected) {
             this.close();
         }
+        const secret = requestedUrl.indexOf('@') === -1 ? '' : requestedUrl.split('@')[0];
         this.currentConnection = await (new Promise((resolve, reject) => {
             const handleOnConnect = (connection) => {
                 const newConnection = new Connection_1.Connection(connection);
@@ -100,7 +101,9 @@ class NetClient extends events_1.EventEmitter {
             };
             this.wsClient.addListener('connectFailed', handleOnConnectionFailed);
             this.wsClient.addListener('connect', handleOnConnect);
-            this.wsClient.connect(requestedUrl, 'echo-protocol');
+            this.wsClient.connect(requestedUrl, 'echo-protocol', undefined, {
+                'net-secret': secret,
+            });
         }));
         this.currentConnection.on(constants_1.CONNECTION_EVENTS.ERROR, this.handleOnConnectionError);
         this.currentConnection.on(constants_1.CONNECTION_EVENTS.CLOSE, this.handleOnConnectionClose);

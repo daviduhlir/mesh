@@ -7,12 +7,14 @@ import { Connection } from './Connection'
 export interface ServerConfiguration {
   port: number
   host: string
+  secret: string
   allowOrigin: (origin: string) => boolean
 }
 
 export const defaultConfiguration: ServerConfiguration = {
   port: 8080,
   host: '127.0.0.1',
+  secret: 'default',
   allowOrigin: (origin) => true
 }
 
@@ -90,6 +92,11 @@ export class NetServer extends EventEmitter {
       return;
     }
 
+    if (request?.httpRequest?.headers['net-secret'] !== this.configuration.secret) {
+      request.reject()
+      console.log('Mesh Connection from origin ' + request.origin + ' rejected, authorization needed')
+    }
+
     const connection = new Connection(request.accept('echo-protocol', request.origin))
     connection.on(CONNECTION_EVENTS.MESSAGE, this.handleIncommingMessage)
     connection.on(CONNECTION_EVENTS.CLOSE, this.handleConnectionClose)
@@ -119,7 +126,7 @@ export class NetServer extends EventEmitter {
   }
 
   /**
-   * Client disconnected
+   * Client handshake done
    */
   protected handleHandshakeDone = (connection: Connection) => {
     if (this.children.every(c => c?.id)) {

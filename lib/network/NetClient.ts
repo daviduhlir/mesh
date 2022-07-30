@@ -113,6 +113,8 @@ export class NetClient extends EventEmitter {
       this.close()
     }
 
+    const secret = requestedUrl.indexOf('@') === -1 ? '' : requestedUrl.split('@')[0]
+
     this.currentConnection = await (new Promise((resolve: (connection: Connection) => void, reject: (error) => void) => {
       const handleOnConnect = (connection: WebSocketConnection) => {
         const newConnection = new Connection(connection)
@@ -131,7 +133,9 @@ export class NetClient extends EventEmitter {
       this.wsClient.addListener('connectFailed', handleOnConnectionFailed);
       this.wsClient.addListener('connect', handleOnConnect)
 
-      this.wsClient.connect(requestedUrl, 'echo-protocol')
+      this.wsClient.connect(requestedUrl, 'echo-protocol', undefined, {
+        'net-secret': secret,
+      })
     }))
 
     this.currentConnection.on(CONNECTION_EVENTS.ERROR, this.handleOnConnectionError)
@@ -165,7 +169,7 @@ export class NetClient extends EventEmitter {
   }
 
   /**
-   * Message handler
+   * Handshake handler
    */
   protected handleHandshakeComplete = (connection: Connection) => {
     this.emit(CONNECTION_EVENTS.HANDSHAKE_COMPLETE, connection)

@@ -25,10 +25,11 @@ const IPC_MESSAGE_ACTIONS = {
     BROADCAST: 'BROADCAST',
 };
 exports.defaultConfiguration = {
-    nodesUrls: ['ws://127.0.0.1:8080'],
+    nodesUrls: ['default@ws://127.0.0.1:8080'],
     maxConnectionAttemps: 3,
     serverPort: 8080,
     serverHost: '127.0.0.1',
+    serverSecret: 'default',
     serverAllowOrigin: (origin) => true
 };
 class BroadcastService extends events_1.EventEmitter {
@@ -188,8 +189,7 @@ class BroadcastService extends events_1.EventEmitter {
         }
     }
     async sendWithResult(targetRoute, type, data) {
-        const route = [...targetRoute];
-        const firstRoute = route.shift();
+        const firstRoute = targetRoute[0];
         const connection = (await this.getConnections()).find(c => c.id === firstRoute);
         if (!connection) {
             throw new Error(`Route to ${firstRoute} not found on node ${this.id}`);

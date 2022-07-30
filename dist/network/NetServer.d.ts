@@ -6,6 +6,7 @@ import { Connection } from './Connection';
 export interface ServerConfiguration {
     port: number;
     host: string;
+    secret: string;
     allowOrigin: (origin: string) => boolean;
 }
 export declare const defaultConfiguration: ServerConfiguration;

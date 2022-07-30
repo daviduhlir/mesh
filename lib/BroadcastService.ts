@@ -37,14 +37,16 @@ export interface BroadcastServiceConfiguration {
   maxConnectionAttemps: number
   serverPort: number
   serverHost: string
+  serverSecret: string
   serverAllowOrigin: (origin: string) => boolean
 }
 
 export const defaultConfiguration: BroadcastServiceConfiguration = {
-  nodesUrls: ['ws://127.0.0.1:8080'],
+  nodesUrls: ['default@ws://127.0.0.1:8080'],
   maxConnectionAttemps: 3,
   serverPort: 8080,
   serverHost: '127.0.0.1',
+  serverSecret: 'default',
   serverAllowOrigin: (origin) => true
 }
 
@@ -279,8 +281,7 @@ export class BroadcastService extends EventEmitter {
    * Send message and wait for result
    */
   protected async sendWithResult(targetRoute: string[], type: string, data: any) {
-    const route = [...targetRoute]
-    const firstRoute = route.shift()
+    const firstRoute = targetRoute[0]
     const connection = (await this.getConnections()).find(c => c.id === firstRoute)
     if (!connection) {
       throw new Error(`Route to ${firstRoute} not found on node ${this.id}`)

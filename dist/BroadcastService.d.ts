@@ -24,6 +24,7 @@ export interface BroadcastServiceConfiguration {
     maxConnectionAttemps: number;
     serverPort: number;
     serverHost: string;
+    serverSecret: string;
     serverAllowOrigin: (origin: string) => boolean;
 }
 export declare const defaultConfiguration: BroadcastServiceConfiguration;
