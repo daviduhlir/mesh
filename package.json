@@ -1,6 +1,6 @@
 {
   "name": "@david.uhlir/mesh",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Mesh bus for node.js server applications",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

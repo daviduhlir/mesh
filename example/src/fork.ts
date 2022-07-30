@@ -4,24 +4,28 @@ import * as cluster from 'cluster'
 // create network on one server -> it's posible when you are using different ports
 const s = [
   new BroadcastService({
-    nodesUrls: [ 'ws://127.0.0.1:3001/'],
+    nodesUrls: [ 'secret-server-2@ws://127.0.0.1:3001/'],
     serverPort: 3000,
     nodeName: 'Server1',
+    serverSecret: 'secret-server-1',
   }),
   new BroadcastService({
-    nodesUrls: ['ws://127.0.0.1:3002/'],
+    nodesUrls: ['secret-server-3@ws://127.0.0.1:3002/'],
     serverPort: 3001,
     nodeName: 'Server2',
+    serverSecret: 'secret-server-2',
   }),
   new BroadcastService({
-    nodesUrls: ['ws://127.0.0.1:3003/'],
+    nodesUrls: ['secret-server-4@ws://127.0.0.1:3003/'],
     serverPort: 3002,
     nodeName: 'Server3',
+    serverSecret: 'secret-server-3',
   }),
   new BroadcastService({
-    nodesUrls: ['ws://127.0.0.1:3000/'],
+    nodesUrls: ['secret-server-1@ws://127.0.0.1:3000/'],
     serverPort: 3003,
     nodeName: 'Server4',
+    serverSecret: 'secret-server-4',
   }),
 ]
 s.forEach(c => c.initialize())

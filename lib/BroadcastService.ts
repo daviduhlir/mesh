@@ -76,6 +76,7 @@ export class BroadcastService extends EventEmitter {
       this.server = new NetServer(this.id, {
         port: this.configuration.serverPort,
         host: this.configuration.serverHost,
+        secret: this.configuration.serverSecret,
         allowOrigin: this.configuration.serverAllowOrigin,
       })
 

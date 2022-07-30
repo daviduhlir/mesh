@@ -89,12 +89,13 @@ export class NetServer extends EventEmitter {
     if (!this.configuration.allowOrigin(request.origin)) {
       request.reject()
       console.log('Mesh Connection from origin ' + request.origin + ' rejected')
-      return;
+      return
     }
 
     if (request?.httpRequest?.headers['net-secret'] !== this.configuration.secret) {
       request.reject()
       console.log('Mesh Connection from origin ' + request.origin + ' rejected, authorization needed')
+      return
     }
 
     const connection = new Connection(request.accept('echo-protocol', request.origin))

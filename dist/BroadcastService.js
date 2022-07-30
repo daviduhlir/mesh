@@ -86,6 +86,7 @@ class BroadcastService extends events_1.EventEmitter {
             this.server = new NetServer_1.NetServer(this.id, {
                 port: this.configuration.serverPort,
                 host: this.configuration.serverHost,
+                secret: this.configuration.serverSecret,
                 allowOrigin: this.configuration.serverAllowOrigin,
             });
             this.client = new NetClient_1.NetClient(this.id, {
