@@ -17,6 +17,7 @@ export const MESSAGE_TYPE = {
   BROADCAST: 'BROADCAST',
   TRACE_PROBE: 'TRACE_PROBE',
   REGISTER_NODE: 'REGISTER_NODE',
+  MESSAGE_RETURN: 'MESSAGE_RETURN',
 }
 
 const IPC_MESSAGE_ACTIONS = {
@@ -50,8 +51,15 @@ export const defaultConfiguration: BroadcastServiceConfiguration = {
   serverAllowOrigin: (origin) => true
 }
 
+export interface MessageCallWaiter {
+  reject: (error: any) => void
+  resolve: (message: any) => void
+  messageId: string
+}
+
 export class BroadcastService extends EventEmitter {
   public readonly id: string = randomHash()
+  protected waitedResponses: MessageCallWaiter[] = []
 
   protected configuration: BroadcastServiceConfiguration
   protected server: NetServer
@@ -225,13 +233,13 @@ export class BroadcastService extends EventEmitter {
         try {
           connection.send({
             MESSAGE_ID: message.MESSAGE_ID,
-            MESSAGE_RETURN: true,
+            TYPE: MESSAGE_TYPE.MESSAGE_RETURN,
             RESULT: await this.sendWithResult(message.ROUTE, message.TYPE, message.DATA),
           })
         } catch(e) {
           connection.send({
             MESSAGE_ID: message.MESSAGE_ID,
-            MESSAGE_RETURN: true,
+            TYPE: MESSAGE_TYPE.MESSAGE_RETURN,
             ERROR: e.toString(),
           })
         }
@@ -255,7 +263,7 @@ export class BroadcastService extends EventEmitter {
 
       connection.send({
         MESSAGE_ID: message.MESSAGE_ID,
-        MESSAGE_RETURN: true,
+        TYPE: MESSAGE_TYPE.MESSAGE_RETURN,
         RESULT: (await this.getConnections()).filter(c => c.id !== connection.id).map(c => c.id),
       })
 
@@ -269,6 +277,11 @@ export class BroadcastService extends EventEmitter {
       this.nodeNames[message.DATA.NODE_ID] = message.DATA.NAME
       this.emit(BROADCAST_EVENTS.NODE_IDENTIFICATION)
 
+    } else if (message.TYPE === MESSAGE_TYPE.MESSAGE_RETURN && message.MESSAGE_ID) {
+      const foundItem = this.waitedResponses.find(item => item.messageId === message.MESSAGE_ID)
+      if (foundItem) {
+        foundItem.resolve(message)
+      }
     }
   }
 
@@ -291,18 +304,22 @@ export class BroadcastService extends EventEmitter {
     const messageId = randomHash()
 
     return new Promise((resolve: (response: any) => void, reject: (error) => void) => {
-      const handleMessage = (_: Connection, message: any) => {
-        if (message.MESSAGE_ID === messageId && message.MESSAGE_RETURN) {
-          connection.removeListener(CONNECTION_EVENTS.MESSAGE, handleMessage)
+      this.waitedResponses.push({
+        resolve: (message: any) => {
+          this.waitedResponses = this.waitedResponses.filter(i => !(i.messageId === messageId))
           if (message.ERROR) {
             reject(message.ERROR)
           } else {
             resolve(message.RESULT)
           }
-        }
-      }
+        },
+        reject: () => {
+          this.waitedResponses = this.waitedResponses.filter(i => !(i.messageId === messageId))
+          resolve(new Error(`Call was rejected, process probably died during call, or rejection was called.`))
+        },
+        messageId,
+      })
 
-      connection.addListener(CONNECTION_EVENTS.MESSAGE, handleMessage)
       this.send(targetRoute, type, data, messageId)
     })
   }

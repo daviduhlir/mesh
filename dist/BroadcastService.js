@@ -17,6 +17,7 @@ exports.MESSAGE_TYPE = {
     BROADCAST: 'BROADCAST',
     TRACE_PROBE: 'TRACE_PROBE',
     REGISTER_NODE: 'REGISTER_NODE',
+    MESSAGE_RETURN: 'MESSAGE_RETURN',
 };
 const IPC_MESSAGE_ACTIONS = {
     GET_NODES_LIST: 'GET_NODES_LIST',
@@ -36,6 +37,7 @@ class BroadcastService extends events_1.EventEmitter {
     constructor(configuration) {
         super();
         this.id = utils_1.randomHash();
+        this.waitedResponses = [];
         this.routes = [];
         this.nodeNames = {};
         this.handleNodesConnectionsChange = async (connection) => {
@@ -48,14 +50,14 @@ class BroadcastService extends events_1.EventEmitter {
                     try {
                         connection.send({
                             MESSAGE_ID: message.MESSAGE_ID,
-                            MESSAGE_RETURN: true,
+                            TYPE: exports.MESSAGE_TYPE.MESSAGE_RETURN,
                             RESULT: await this.sendWithResult(message.ROUTE, message.TYPE, message.DATA),
                         });
                     }
                     catch (e) {
                         connection.send({
                             MESSAGE_ID: message.MESSAGE_ID,
-                            MESSAGE_RETURN: true,
+                            TYPE: exports.MESSAGE_TYPE.MESSAGE_RETURN,
                             ERROR: e.toString(),
                         });
                     }
@@ -176,7 +178,7 @@ class BroadcastService extends events_1.EventEmitter {
         if (message.TYPE === exports.MESSAGE_TYPE.TRACE_PROBE) {
             connection.send({
                 MESSAGE_ID: message.MESSAGE_ID,
-                MESSAGE_RETURN: true,
+                TYPE: exports.MESSAGE_TYPE.MESSAGE_RETURN,
                 RESULT: (await this.getConnections()).filter(c => c.id !== connection.id).map(c => c.id),
             });
         }
@@ -188,6 +190,12 @@ class BroadcastService extends events_1.EventEmitter {
             this.nodeNames[message.DATA.NODE_ID] = message.DATA.NAME;
             this.emit(exports.BROADCAST_EVENTS.NODE_IDENTIFICATION);
         }
+        else if (message.TYPE === exports.MESSAGE_TYPE.MESSAGE_RETURN && message.MESSAGE_ID) {
+            const foundItem = this.waitedResponses.find(item => item.messageId === message.MESSAGE_ID);
+            if (foundItem) {
+                foundItem.resolve(message);
+            }
+        }
     }
     async sendWithResult(targetRoute, type, data) {
         const firstRoute = targetRoute[0];
@@ -197,18 +205,22 @@ class BroadcastService extends events_1.EventEmitter {
         }
         const messageId = utils_1.randomHash();
         return new Promise((resolve, reject) => {
-            const handleMessage = (_, message) => {
-                if (message.MESSAGE_ID === messageId && message.MESSAGE_RETURN) {
-                    connection.removeListener(constants_1.CONNECTION_EVENTS.MESSAGE, handleMessage);
+            this.waitedResponses.push({
+                resolve: (message) => {
+                    this.waitedResponses = this.waitedResponses.filter(i => !(i.messageId === messageId));
                     if (message.ERROR) {
                         reject(message.ERROR);
                     }
                     else {
                         resolve(message.RESULT);
                     }
-                }
-            };
-            connection.addListener(constants_1.CONNECTION_EVENTS.MESSAGE, handleMessage);
+                },
+                reject: () => {
+                    this.waitedResponses = this.waitedResponses.filter(i => !(i.messageId === messageId));
+                    resolve(new Error(`Call was rejected, process probably died during call, or rejection was called.`));
+                },
+                messageId,
+            });
             this.send(targetRoute, type, data, messageId);
         });
     }

@@ -13,6 +13,7 @@ export declare const MESSAGE_TYPE: {
     BROADCAST: string;
     TRACE_PROBE: string;
     REGISTER_NODE: string;
+    MESSAGE_RETURN: string;
 };
 export interface BroadcastMessageMeta {
     SENDER: string;
@@ -28,8 +29,14 @@ export interface BroadcastServiceConfiguration {
     serverAllowOrigin: (origin: string) => boolean;
 }
 export declare const defaultConfiguration: BroadcastServiceConfiguration;
+export interface MessageCallWaiter {
+    reject: (error: any) => void;
+    resolve: (message: any) => void;
+    messageId: string;
+}
 export declare class BroadcastService extends EventEmitter {
     readonly id: string;
+    protected waitedResponses: MessageCallWaiter[];
     protected configuration: BroadcastServiceConfiguration;
     protected server: NetServer;
     protected client: NetClient;
