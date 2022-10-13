@@ -2,9 +2,10 @@ import { client as WebSocketClient, connection as WebSocketConnection } from 'we
 import { EventEmitter } from 'events'
 import { CONNECTION_EVENTS } from '../utils/constants'
 import { Connection } from './Connection'
+import { NodeUrlDef, parseNodeUrl } from '../utils/configuration'
 
 export interface ClientConfiguration {
-  urls: string[]
+  urls: NodeUrlDef[]
   maxAttemps: number
 }
 
@@ -108,13 +109,15 @@ export class NetClient extends EventEmitter {
   /**
    * Connect to specific URL
    */
-  protected async connect(requestedUrl: string) {
+  protected async connect(requestedUrl: NodeUrlDef) {
     if (this.isConnected) {
       this.close()
     }
 
-    const secret = requestedUrl.indexOf('@') === -1 ? '' : requestedUrl.split('@')[0]
-    const url = requestedUrl.indexOf('@') === -1 ? requestedUrl : requestedUrl.split('@')[1]
+    const { url, secret } = parseNodeUrl(requestedUrl)
+    if (!url || !secret) {
+      throw new Error(`Connection to node is not defined properly. Url: ${url}`)
+    }
 
     this.currentConnection = await (new Promise((resolve: (connection: Connection) => void, reject: (error) => void) => {
       const handleOnConnect = (connection: WebSocketConnection) => {

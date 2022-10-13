@@ -5,6 +5,7 @@ const websocket_1 = require("websocket");
 const events_1 = require("events");
 const constants_1 = require("../utils/constants");
 const Connection_1 = require("./Connection");
+const configuration_1 = require("../utils/configuration");
 exports.defaultConfiguration = {
     urls: [],
     maxAttemps: 3,
@@ -86,8 +87,10 @@ class NetClient extends events_1.EventEmitter {
         if (this.isConnected) {
             this.close();
         }
-        const secret = requestedUrl.indexOf('@') === -1 ? '' : requestedUrl.split('@')[0];
-        const url = requestedUrl.indexOf('@') === -1 ? requestedUrl : requestedUrl.split('@')[1];
+        const { url, secret } = configuration_1.parseNodeUrl(requestedUrl);
+        if (!url || !secret) {
+            throw new Error(`Connection to node is not defined properly. Url: ${url}`);
+        }
         this.currentConnection = await (new Promise((resolve, reject) => {
             const handleOnConnect = (connection) => {
                 const newConnection = new Connection_1.Connection(connection);

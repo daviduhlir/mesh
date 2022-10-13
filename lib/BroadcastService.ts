@@ -6,6 +6,7 @@ import { Connection } from './network/Connection'
 import { EventEmitter } from 'events'
 import * as cluster from 'cluster'
 import { IpcMethodHandler } from '@david.uhlir/ipc-method'
+import { NodeUrlDef } from './utils/configuration'
 
 export const BROADCAST_EVENTS = {
   MESSAGE: 'MESSAGE',
@@ -34,7 +35,7 @@ export interface BroadcastMessageMeta {
 
 export interface BroadcastServiceConfiguration {
   nodeName?: string
-  nodesUrls: string[]
+  nodesUrls: NodeUrlDef[]
   maxConnectionAttemps: number
   serverPort: number
   serverHost: string
